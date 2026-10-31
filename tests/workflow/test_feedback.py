@@ -407,6 +407,70 @@ def test_a_lesson_about_something_else_adds_no_signal(rig: Rig) -> None:
     assert not any("approved lesson" in a for a in icp["assumptions"])
 
 
+def meeting_with(wf: Any, mid: str, title: str, learnings: list[str], **over: Any) -> None:
+    wf.add_meeting(
+        mid,
+        {
+            "title": title,
+            "held_on": "2026-10-20",
+            "account_name": title,
+            "learnings": learnings,
+            **over,
+        },
+    )
+
+
+def test_a_learning_typed_after_a_meeting_is_confirmed_evidence(rig: Rig) -> None:
+    mid = ready(rig)
+    meeting_with(
+        rig.services.workflow, mid, "Sunrise call", ["Principals want teacher buy-in first"]
+    )
+    [i] = rig.services.feedback.insights(mid)
+    assert i["text"] == "Principals want teacher buy-in first" and i["kind"] == "learning"
+    assert i["status"] == "confirmed" and i["basis"] == "user_stated" and i["account_name"]
+
+
+def test_a_missed_meetings_learnings_are_not_evidence(rig: Rig) -> None:
+    mid = ready(rig)
+    meeting_with(rig.services.workflow, mid, "Walk-in", ["We learned nothing"], status="missed")
+    assert rig.services.feedback.insights(mid) == []
+
+
+def test_typed_learnings_do_not_duplicate_when_read_twice(rig: Rig) -> None:
+    mid = ready(rig)
+    meeting_with(rig.services.workflow, mid, "Sunrise call", ["A", "B", " "])
+    fb = rig.services.feedback
+    assert [i["text"] for i in fb.insights(mid)] == ["A", "B"] and len(fb.insights(mid)) == 2
+
+
+def test_one_meeting_is_not_a_pattern_but_two_are(rig: Rig) -> None:
+    wf, fb = rig.services.workflow, rig.services.feedback
+    mid = ready(rig)
+    wf.build_strategy(mid)
+    meeting_with(wf, mid, "Sunrise call", ["Teacher buy-in comes first"])
+    one = fb.propose_lesson(
+        mid, "Lead with teacher buy-in", "messaging", [fb.insights(mid)[0]["id"]]
+    )
+    assert (
+        one["single_source"] is True and fb.decide_lesson(mid, one["id"], "approved")["ok"] is False
+    )
+    meeting_with(wf, mid, "Moonrise call", ["Teachers decide before principals"])
+    ids = [i["id"] for i in fb.insights(mid)]
+    two = fb.propose_lesson(mid, "Lead with teacher buy-in", "messaging", ids)
+    assert two["single_source"] is False and fb.decide_lesson(mid, two["id"], "approved")["ok"]
+
+
+def test_a_typed_learning_can_still_be_rejected_by_a_person(rig: Rig) -> None:
+    fb = rig.services.feedback
+    mid = ready(rig)
+    meeting_with(rig.services.workflow, mid, "Sunrise call", ["Not actually true"])
+    [i] = fb.insights(mid)
+    fb.review_insight(mid, i["id"], "reject")
+    [after] = fb.insights(mid)
+    assert after["status"] == "rejected"
+    assert fb.propose_lesson(mid, "x", "messaging", [i["id"]])["error"] == "unsupported"
+
+
 def test_a_holdout_target_does_not_get_the_lesson(rig: Rig) -> None:
     fb, mid, p = two_sources(rig)
     approve(rig, fb, mid, p)

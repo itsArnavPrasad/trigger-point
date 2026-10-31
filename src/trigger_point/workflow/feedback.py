@@ -472,7 +472,40 @@ class FeedbackService:
         return {"ok": True}
 
     def insights(self, mission_id: str) -> list[dict[str, Any]]:
-        return self.engine.records("insight", mission_id)
+        """Reviewed insights from imported meetings, plus what a person typed after a meeting.
+        A stored record (a person's review) wins over the same insight derived from a meeting."""
+        stored = self.engine.records("insight", mission_id)
+        derived = self._typed_learnings(mission_id)
+        return list({i["id"]: i for i in [*derived, *stored]}.values())
+
+    def _typed_learnings(self, mission_id: str) -> list[dict[str, Any]]:
+        """A founder's own conclusion from a meeting is already a person's reading, so it counts
+        as confirmed. A meeting that was missed or cancelled taught nothing."""
+        found = []
+        for m in self.wf.meetings(mission_id):
+            if m.get("status") in ("missed", "cancelled"):
+                continue
+            for text in (str(t).strip() for t in m.get("learnings") or []):
+                if not text:
+                    continue
+                found.append(
+                    {
+                        "id": stable_id("ins", mission_id, m["id"], "learning", text),
+                        "kind": "learning",
+                        "text": text,
+                        "basis": "user_stated",
+                        "quote": "",
+                        "speaker": None,
+                        "ambiguous": False,
+                        "meeting_id": m["id"],
+                        "account_name": m.get("account_name"),
+                        "strategy_version": m.get("strategy_version"),
+                        "status": "confirmed",
+                        "original_text": None,
+                        "source_link": m.get("link"),
+                    }
+                )
+        return found
 
     @guarded
     def add_insights(

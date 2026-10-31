@@ -130,11 +130,16 @@ def select_accounts(
             # The place filter is fuzzy and leaked an ARE school for a Mumbai plan (proven
             # live), so the returned record is re-checked against the plan's countries.
             reason = "wrong_country"
-        elif buyer_rule_on and name_fold and any(w in name_fold for w in BUYER_EXCLUSION_WORDS) or (
+        elif (
             buyer_rule_on
             and name_fold
-            and any(w in name_fold for w in SELLER_NAME_MARKERS)
-            and not any(w in name_fold for w in BUYER_NAME_WORDS)
+            and any(w in name_fold for w in BUYER_EXCLUSION_WORDS)
+            or (
+                buyer_rule_on
+                and name_fold
+                and any(w in name_fold for w in SELLER_NAME_MARKERS)
+                and not any(w in name_fold for w in BUYER_NAME_WORDS)
+            )
         ):
             reason = "not_the_buyer"
         if reason:

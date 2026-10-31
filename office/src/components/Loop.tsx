@@ -70,6 +70,25 @@ export function QualifiedAccounts({ v, audiences }: { v: MissionView; audiences:
   )
 }
 
+export function WisprSection({ v, wispr }: { v: MissionView; wispr: string }) {
+  const id = v.mission.id
+  const { error, act } = useAct()
+  const connected = wispr === 'connected'
+  const waiting = v.meetings.filter(m => m.source === 'wispr' && !m.progress)
+  return (
+    <section className="panel" style={{ marginTop: 16 }}>
+      <header><h3>Meeting notes from Wispr Flow</h3><span className="hint">{connected ? 'Connected. Each read waits for your click' : 'Not connected: notes are typed by hand'}</span></header>
+      <div className="row start"><button className="btn" disabled={!connected} onClick={() => void act(() => post(`/missions/${id}/import-meetings`))}>Import from Wispr Flow</button></div>
+      {error && <p className="alert bad">{error}</p>}
+      {waiting.length > 0 && <ul className="plain">{waiting.map(m => (
+        <li key={m.id}><b>{m.title}</b> <small>Did it move the account forward?</small>
+          <div className="row start">{['progressed', 'stalled', 'disqualified'].map(p => <button key={p} className="btn small" onClick={() => void act(() => post(`/missions/${id}/meetings/${m.id}/progress`, { progress: p }))}>{p}</button>)}</div>
+        </li>
+      ))}</ul>}
+    </section>
+  )
+}
+
 export function Replies({ v }: { v: MissionView }) {
   const id = v.mission.id
   const { error, act } = useAct()

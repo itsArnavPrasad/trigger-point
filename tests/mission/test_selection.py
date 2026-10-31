@@ -9,9 +9,7 @@ from trigger_point.mission.selection import select_accounts
 from trigger_point.providers.crustdata.models import Company
 
 
-def company(
-    pid: int, name: str, domain: str, country: str | None = "IND"
-) -> Company:
+def company(pid: int, name: str, domain: str, country: str | None = "IND") -> Company:
     return Company(
         provider_company_id=pid,
         name=name,
