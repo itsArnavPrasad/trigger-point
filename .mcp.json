@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "trigger_point": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--quiet",
+        "python",
+        "-m",
+        "trigger_point.mcp_server"
+      ],
+      "env": {}
+    }
+  }
+}

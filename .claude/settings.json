@@ -1,0 +1,116 @@
+{
+  "enabledMcpjsonServers": [
+    "trigger_point"
+  ],
+  "permissions": {
+    "allow": [
+      "mcp__trigger_point__trigger_point_status",
+      "mcp__trigger_point__get_integration_health",
+      "mcp__trigger_point__get_business_context",
+      "mcp__trigger_point__get_discovery",
+      "mcp__trigger_point__get_research",
+      "mcp__trigger_point__get_account_case",
+      "mcp__trigger_point__get_draft",
+      "mcp__trigger_point__create_mission",
+      "mcp__trigger_point__edit_business_profile",
+      "mcp__trigger_point__build_strategy",
+      "mcp__trigger_point__build_icp",
+      "mcp__trigger_point__verify_evidence",
+      "mcp__trigger_point__score_account",
+      "mcp__trigger_point__draft_campaign",
+      "mcp__trigger_point__run_quality_gate",
+      "mcp__trigger_point__request_user_approval",
+      "mcp__trigger_point__reject_approval",
+      "mcp__trigger_point__cancel_mission",
+      "mcp__trigger_point__get_mission_status",
+      "mcp__trigger_point__get_task_details",
+      "mcp__trigger_point__prepare_test_send",
+      "mcp__trigger_point__record_test_send",
+      "mcp__trigger_point__record_test_meeting",
+      "mcp__claude_ai_Google_Calendar__suggest_time"
+    ],
+    "ask": [
+      "mcp__trigger_point__approve_business_profile",
+      "mcp__trigger_point__approve_icp_plan",
+      "mcp__trigger_point__discover_accounts",
+      "mcp__trigger_point__research_account_signals",
+      "mcp__trigger_point__map_buying_committee",
+      "mcp__trigger_point__approve_campaign_draft",
+      "mcp__claude_ai_Gmail__send_message",
+      "mcp__claude_ai_Google_Calendar__create_event"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/office_hook.py\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/office_hook.py\""
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/office_hook.py\""
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/office_hook.py\""
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/office_hook.py\""
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/office_hook.py\""
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/office_hook.py\"",
+            "timeout": 3600
+          }
+        ]
+      }
+    ]
+  }
+}

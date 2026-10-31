@@ -1,0 +1,46 @@
+{
+  "_source": "synthetic demo fixture (fictional companies, documented response shape)",
+  "_request": {
+    "method": "POST",
+    "path": "/company/identify",
+    "body": {
+      "domains": [
+        "supportpilot.example"
+      ],
+      "exact_match": true
+    },
+    "params": null
+  },
+  "status": 200,
+  "headers": {
+    "x-credits-used": "0"
+  },
+  "body": [
+    {
+      "matched_on": "supportpilot.example",
+      "match_type": "domain",
+      "matches": [
+        {
+          "confidence_score": 1,
+          "company_data": {
+            "crustdata_company_id": 1005,
+            "basic_info": {
+              "name": "SupportPilot",
+              "primary_domain": "supportpilot.example",
+              "all_domains": [
+                "supportpilot.example"
+              ],
+              "website": "https://supportpilot.example",
+              "professional_network_url": "https://www.linkedin.example/company/1005",
+              "employee_count_range": "51-200",
+              "industries": [
+                "Software Development"
+              ],
+              "description": null
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

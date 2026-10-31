@@ -1,0 +1,269 @@
+{
+  "_source": "synthetic demo fixture (fictional companies, documented response shape)",
+  "_request": {
+    "method": "POST",
+    "path": "/company/search",
+    "body": {
+      "search": {
+        "query": "B2B SaaS companies with growing customer support teams that run support in Zendesk, Intercom or Salesforce Service Cloud and handle high inbound ticket volume",
+        "mode": "hybrid"
+      },
+      "limit": 11,
+      "fields": [
+        "basic_info",
+        "headcount",
+        "hiring",
+        "locations"
+      ]
+    },
+    "params": null
+  },
+  "status": 200,
+  "headers": {
+    "x-credits-used": "3.01"
+  },
+  "body": {
+    "companies": [
+      {
+        "crustdata_company_id": 1001,
+        "basic_info": {
+          "name": "Ledgerloop",
+          "primary_domain": "ledgerloop.example",
+          "all_domains": [
+            "ledgerloop.example"
+          ],
+          "website": "https://ledgerloop.example",
+          "professional_network_url": "https://www.linkedin.example/company/1001",
+          "employee_count_range": "201-500",
+          "industries": [
+            "Software Development"
+          ],
+          "description": null
+        },
+        "headcount": {
+          "total": 340,
+          "growth_percent": {
+            "1m": 2.4,
+            "3m": 7.1,
+            "6m": 14.2,
+            "12m": 31.0
+          }
+        },
+        "hiring": {
+          "openings_count": 12
+        },
+        "locations": {
+          "country": "USA",
+          "headquarters": null
+        },
+        "updated_at": "2026-10-21T00:00:00Z"
+      },
+      {
+        "crustdata_company_id": 1002,
+        "basic_info": {
+          "name": "Quartzdesk",
+          "primary_domain": "quartzdesk.example",
+          "all_domains": [
+            "quartzdesk.example"
+          ],
+          "website": "https://quartzdesk.example",
+          "professional_network_url": "https://www.linkedin.example/company/1002",
+          "employee_count_range": "51-200",
+          "industries": [
+            "Software Development"
+          ],
+          "description": null
+        },
+        "headcount": {
+          "total": 120,
+          "growth_percent": {
+            "1m": 3.8,
+            "3m": 11.2,
+            "6m": 22.5,
+            "12m": 40.1
+          }
+        },
+        "hiring": {
+          "openings_count": 9
+        },
+        "locations": {
+          "country": "USA",
+          "headquarters": null
+        },
+        "updated_at": "2026-10-21T00:00:00Z"
+      },
+      {
+        "crustdata_company_id": 1003,
+        "basic_info": {
+          "name": "Brightlane HR",
+          "primary_domain": "brightlane.example",
+          "all_domains": [
+            "brightlane.example"
+          ],
+          "website": "https://brightlane.example",
+          "professional_network_url": "https://www.linkedin.example/company/1003",
+          "employee_count_range": "501-1000",
+          "industries": [
+            "Software Development"
+          ],
+          "description": null
+        },
+        "headcount": {
+          "total": 720,
+          "growth_percent": {
+            "1m": 0.5,
+            "3m": 1.6,
+            "6m": 3.1,
+            "12m": 8.4
+          }
+        },
+        "hiring": {
+          "openings_count": 4
+        },
+        "locations": {
+          "country": "CAN",
+          "headquarters": null
+        },
+        "updated_at": "2026-10-21T00:00:00Z"
+      },
+      {
+        "crustdata_company_id": 1004,
+        "basic_info": {
+          "name": "Fernwood Billing",
+          "primary_domain": "fernwood.example",
+          "all_domains": [
+            "fernwood.example"
+          ],
+          "website": "https://fernwood.example",
+          "professional_network_url": "https://www.linkedin.example/company/1004",
+          "employee_count_range": "201-500",
+          "industries": [
+            "Software Development"
+          ],
+          "description": null
+        },
+        "headcount": {
+          "total": 260,
+          "growth_percent": {
+            "1m": -0.3,
+            "3m": -1.0,
+            "6m": -2.0,
+            "12m": 1.5
+          }
+        },
+        "hiring": {
+          "openings_count": 0
+        },
+        "locations": {
+          "country": "USA",
+          "headquarters": null
+        },
+        "updated_at": "2026-06-05T00:00:00Z"
+      },
+      {
+        "crustdata_company_id": 1005,
+        "basic_info": {
+          "name": "SupportPilot",
+          "primary_domain": "supportpilot.example",
+          "all_domains": [
+            "supportpilot.example"
+          ],
+          "website": "https://supportpilot.example",
+          "professional_network_url": "https://www.linkedin.example/company/1005",
+          "employee_count_range": "51-200",
+          "industries": [
+            "Software Development"
+          ],
+          "description": null
+        },
+        "headcount": {
+          "total": 85,
+          "growth_percent": {
+            "1m": 1.7,
+            "3m": 5.0,
+            "6m": 10.0,
+            "12m": 25.0
+          }
+        },
+        "hiring": {
+          "openings_count": 3
+        },
+        "locations": {
+          "country": "USA",
+          "headquarters": null
+        },
+        "updated_at": "2026-10-21T00:00:00Z"
+      },
+      {
+        "crustdata_company_id": 1101,
+        "basic_info": {
+          "name": "Ledgerloop Engineering",
+          "primary_domain": "ledgerloop.example",
+          "all_domains": [
+            "ledgerloop.example"
+          ],
+          "website": "https://ledgerloop.example",
+          "professional_network_url": "https://www.linkedin.example/showcase/1101",
+          "employee_count_range": "51-200",
+          "industries": [
+            "Software Development"
+          ],
+          "description": null
+        },
+        "headcount": {
+          "total": 60,
+          "growth_percent": {
+            "1m": 0.8,
+            "3m": 2.5,
+            "6m": 5.0,
+            "12m": 9.0
+          }
+        },
+        "hiring": {
+          "openings_count": 2
+        },
+        "locations": {
+          "country": "USA",
+          "headquarters": null
+        },
+        "updated_at": "2026-10-21T00:00:00Z"
+      },
+      {
+        "crustdata_company_id": 1006,
+        "basic_info": {
+          "name": "Orbitly",
+          "primary_domain": "orbitly.example",
+          "all_domains": [
+            "orbitly.example"
+          ],
+          "website": "https://orbitly.example",
+          "professional_network_url": "https://www.linkedin.example/company/1006",
+          "employee_count_range": "51-200",
+          "industries": [
+            "Software Development"
+          ],
+          "description": null
+        },
+        "headcount": {
+          "total": 150,
+          "growth_percent": {
+            "1m": 3.0,
+            "3m": 9.0,
+            "6m": 18.0,
+            "12m": 35.0
+          }
+        },
+        "hiring": {
+          "openings_count": 15
+        },
+        "locations": {
+          "country": "CAN",
+          "headquarters": null
+        },
+        "updated_at": "2026-10-21T00:00:00Z"
+      }
+    ],
+    "next_cursor": null,
+    "total_count": null
+  }
+}

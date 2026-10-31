@@ -1,0 +1,701 @@
+"""Typed Crustdata request/response models (API 2025-11-01) and normalised internal records.
+
+Request vocabularies are allowlists taken from docs.crustdata.com; anything else
+is rejected before an HTTP request exists, so LLM-proposed filters cannot reach the client.
+"""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+from typing import Any, Literal, Self
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+Operator = Literal[
+    "=", "!=", "<", "=<", ">", "=>", "in", "not_in", "is_null", "is_not_null", "(.)", "[.]"
+]
+
+ROLE_FUNCTIONS = (
+    "accounting",
+    "administrative",
+    "arts_and_design",
+    "business_development",
+    "community_and_social_services",
+    "consulting",
+    "customer_success_and_support",
+    "education",
+    "engineering",
+    "entrepreneurship",
+    "finance",
+    "healthcare_services",
+    "human_resources",
+    "information_technology",
+    "legal",
+    "marketing",
+    "media_and_communication",
+    "military_and_protective_services",
+    "operations",
+    "product_management",
+    "program_and_project_management",
+    "purchasing",
+    "quality_assurance",
+    "real_estate",
+    "research",
+    "sales",
+    "support",
+)
+_PERIODS = ("1m", "3m", "6m", "12m")
+FILTERABLE_FIELDS: frozenset[str] = frozenset(
+    {
+        "crustdata_company_id",
+        "updated_at",
+        "indexed_at",
+        "basic_info.name",
+        "basic_info.primary_domain",
+        "basic_info.website",
+        "basic_info.professional_network_url",
+        "basic_info.company_type",
+        "basic_info.status",
+        "basic_info.year_founded",
+        "basic_info.employee_count_range",
+        "basic_info.markets",
+        "basic_info.industries",
+        "revenue.estimated.lower_bound_usd",
+        "revenue.estimated.upper_bound_usd",
+        "funding.total_investment_usd",
+        "funding.last_round_amount_usd",
+        "funding.last_fundraise_date",
+        "funding.last_round_type",
+        "funding.investors",
+        "headcount.total",
+        "headcount.largest_headcount_country",
+        "locations.country",
+        "locations.headquarters",
+        "taxonomy.professional_network_industry",
+        "taxonomy.professional_network_specialities",
+        "taxonomy.categories",
+        "taxonomy.primary_naics_detail.naics_code",
+        "followers.count",
+        "followers.six_months_growth_percent",
+    }
+    | {f"headcount.growth_{k}.{p}" for k in ("percent", "absolute") for p in _PERIODS}
+    | {
+        f"roles.{m}.{fn}"
+        for m in ("distribution", "distribution_percent", "growth_6m", "growth_yoy")
+        for fn in ROLE_FUNCTIONS
+    }
+)
+SELECTABLE_GROUPS: frozenset[str] = frozenset(
+    {
+        "basic_info",
+        "revenue",
+        "headcount",
+        "funding",
+        "hiring",
+        "locations",
+        "taxonomy",
+        "followers",
+        "social_profiles",
+        "software_reviews",
+        "metadata",
+        "updated_at",
+        "indexed_at",
+        "crustdata_company_id",
+    }
+)
+SORTABLE_FIELDS: frozenset[str] = frozenset(
+    {
+        "crustdata_company_id",
+        "updated_at",
+        "basic_info.name",
+        "basic_info.year_founded",
+        "funding.total_investment_usd",
+        "funding.last_round_amount_usd",
+        "funding.last_fundraise_date",
+        "headcount.total",
+        "followers.count",
+    }
+)
+
+
+class Condition(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    field: str
+    type: Operator
+    value: str | int | float | bool | list[str | int | float] | None
+
+    @field_validator("field")
+    @classmethod
+    def _known_field(cls, v: str) -> str:
+        if v not in FILTERABLE_FIELDS:
+            raise ValueError(f"{v!r} is not a supported Crustdata company filter field")
+        return v
+
+    @model_validator(mode="after")
+    def _value_matches_operator(self) -> Self:
+        if self.type in ("in", "not_in") and not isinstance(self.value, list):
+            raise ValueError(f"operator {self.type} requires a list value")
+        if self.type in ("is_null", "is_not_null") and self.value is not None:
+            raise ValueError(f"operator {self.type} requires value null")
+        if self.type not in ("is_null", "is_not_null") and self.value is None:
+            raise ValueError(f"operator {self.type} requires a value")
+        return self
+
+
+class ConditionGroup(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    op: Literal["and", "or"]
+    conditions: list[Condition | ConditionGroup] = Field(min_length=1)
+
+
+class SemanticSearch(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    query: str = Field(min_length=1, max_length=4000)
+    mode: Literal["hybrid", "lexical", "semantic"] = "hybrid"
+
+
+class Sort(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    field: str
+    order: Literal["asc", "desc"]
+
+    @field_validator("field")
+    @classmethod
+    def _sortable(cls, v: str) -> str:
+        if v not in SORTABLE_FIELDS:
+            raise ValueError(f"{v!r} is not sortable")
+        return v
+
+
+class CompanySearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    filters: Condition | ConditionGroup | None = None
+    search: SemanticSearch | None = None
+    cursor: str | None = None
+    limit: int = Field(default=20, ge=1, le=1000)
+    sorts: list[Sort] | None = None
+    fields: list[str] | None = None
+
+    @model_validator(mode="after")
+    def _documented_constraints(self) -> Self:
+        if self.filters is None and self.search is None:
+            raise ValueError("company search needs filters or search")
+        if self.search is not None and self.limit > 100:
+            raise ValueError("ranked search returns at most 100 results per page")
+        if self.search is not None and self.sorts:
+            raise ValueError("sorts are not supported with ranked search")
+        for f in self.fields or []:
+            if f.split(".", 1)[0] not in SELECTABLE_GROUPS:
+                raise ValueError(f"{f!r} is not a selectable search field")
+        return self
+
+    def to_body(self) -> dict[str, Any]:
+        return self.model_dump(mode="json", exclude_none=True)
+
+    def filter_groups(self) -> set[str]:
+        def walk(node: Condition | ConditionGroup | None) -> set[str]:
+            if node is None:
+                return set()
+            if isinstance(node, Condition):
+                return {node.field.split(".", 1)[0]}
+            return set().union(*(walk(c) for c in node.conditions))
+
+        return walk(self.filters)
+
+
+# ---- responses (unknown fields ignored, known fields typed, missing = None) ----
+
+
+class _Lenient(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+
+class BasicInfo(_Lenient):
+    name: str | None = None
+    primary_domain: str | None = None
+    all_domains: list[str] | None = None
+    website: str | None = None
+    professional_network_url: str | None = None
+    description: str | None = None
+    company_type: str | None = None
+    year_founded: int | str | None = None
+    employee_count_range: str | None = None
+    industries: list[str] | None = None
+
+
+class CompanyIdentifyData(_Lenient):
+    crustdata_company_id: int
+    basic_info: BasicInfo | None = None
+
+
+class IdentifyMatch(_Lenient):
+    confidence_score: float
+    company_data: CompanyIdentifyData
+
+
+class IdentifyResult(_Lenient):
+    matched_on: str
+    match_type: str
+    matches: list[IdentifyMatch]
+
+
+class Headcount(_Lenient):
+    total: int | None = None
+    growth_percent: dict[str, float | None] | None = None
+
+
+class Hiring(_Lenient):
+    openings_count: int | None = None
+    openings_growth_percent: dict[str, float | None] | None = None
+
+
+class Funding(_Lenient):
+    total_investment_usd: float | None = None
+    last_round_amount_usd: float | None = None
+    last_fundraise_date: str | None = None
+    last_round_type: str | None = None
+
+
+class Locations(_Lenient):
+    country: str | None = None
+    headquarters: str | None = None
+
+
+class CompanyRecord(_Lenient):
+    crustdata_company_id: int
+    basic_info: BasicInfo | None = None
+    headcount: Headcount | None = None
+    hiring: Hiring | None = None
+    funding: Funding | None = None
+    locations: Locations | None = None
+    updated_at: str | None = None
+
+
+class SearchResponse(_Lenient):
+    companies: list[CompanyRecord]
+    next_cursor: str | None = None
+    total_count: int | None = None
+
+
+class EndpointEntry(_Lenient):
+    path: str
+    category: str | None = None
+    status: str
+    effective_rate_limit_rpm: int | None = None
+    base_credits: float | None = None
+
+
+class EndpointAccess(_Lenient):
+    api_version: str | None = None
+    endpoints: list[EndpointEntry]
+
+    def is_enabled(self, path: str) -> bool:
+        return any(e.path == path and e.status == "enabled" for e in self.endpoints)
+
+
+# ---- normalised internal records ----
+
+
+class Company(BaseModel):
+    """Trigger Point's provider-neutral company record. Missing provider data stays None."""
+
+    model_config = ConfigDict(frozen=True)
+
+    provider: Literal["crustdata"] = "crustdata"
+    provider_company_id: int
+    name: str | None
+    primary_domain: str | None
+    all_domains: list[str] = Field(default_factory=list)
+    website: str | None = None
+    professional_network_url: str | None = None
+    description: str | None = None
+    employee_count_range: str | None = None
+    industries: list[str] = Field(default_factory=list)
+    headcount_total: int | None = None
+    headcount_growth_6m_pct: float | None = None
+    headcount_growth_12m_pct: float | None = None
+    hiring_openings: int | None = None
+    funding_last_round_type: str | None = None
+    funding_last_fundraise_date: str | None = None
+    funding_total_usd: float | None = None
+    hq_country: str | None = None
+    provider_updated_at: str | None = None
+    retrieved_at: datetime
+    source_endpoint: str
+
+
+class CompanySearchPage(BaseModel):
+    companies: list[Company]
+    next_cursor: str | None
+    total_count: int | None
+
+
+def normalise_company(rec: CompanyRecord, retrieved_at: datetime, endpoint: str) -> Company:
+    b = rec.basic_info or BasicInfo()
+    growth = (rec.headcount.growth_percent if rec.headcount else None) or {}
+    return Company(
+        provider_company_id=rec.crustdata_company_id,
+        name=b.name,
+        primary_domain=(b.primary_domain or "").lower() or None,
+        all_domains=[d.lower() for d in b.all_domains or []],
+        website=b.website,
+        professional_network_url=b.professional_network_url,
+        description=b.description,
+        employee_count_range=b.employee_count_range,
+        industries=b.industries or [],
+        headcount_total=rec.headcount.total if rec.headcount else None,
+        headcount_growth_6m_pct=growth.get("6m"),
+        headcount_growth_12m_pct=growth.get("12m"),
+        hiring_openings=rec.hiring.openings_count if rec.hiring else None,
+        funding_last_round_type=(rec.funding.last_round_type or None) if rec.funding else None,
+        funding_last_fundraise_date=rec.funding.last_fundraise_date if rec.funding else None,
+        funding_total_usd=rec.funding.total_investment_usd if rec.funding else None,
+        hq_country=rec.locations.country if rec.locations else None,
+        provider_updated_at=rec.updated_at,
+        retrieved_at=retrieved_at,
+        source_endpoint=endpoint,
+    )
+
+
+# ---- Job search (/job/search) and Person search (/person/search) ----
+# Field allowlists copied from docs.crustdata.com API reference (2025-11-01).
+
+JOB_FILTERABLE_FIELDS: frozenset[str] = frozenset(
+    {
+        "job_details.title",
+        "job_details.category",
+        "job_details.workplace_type",
+        "job_details.employment_type",
+        "job_details.reposted_job",
+        "job_details.url",
+        "company.basic_info.company_id",
+        "company.basic_info.name",
+        "company.basic_info.primary_domain",
+        "company.basic_info.industries",
+        "location.country",
+        "location.city",
+        "content.description",
+        "crustdata_job_id",
+        "metadata.date_added",
+        "metadata.date_updated",
+    }
+)
+JOB_SELECTABLE_GROUPS: frozenset[str] = frozenset(
+    {"crustdata_job_id", "job_details", "company", "location", "content", "metadata"}
+)
+PERSON_FILTERABLE_FIELDS: frozenset[str] = frozenset(
+    {
+        "crustdata_person_id",
+        "experience.employment_details.current.company_id",
+        "experience.employment_details.current.title",
+        "experience.employment_details.current.seniority_level",
+        "experience.employment_details.current.function_category",
+        "experience.employment_details.current.start_date",
+    }
+)
+# Never request contact data here: it is a separate, opt-in, per-contact-billed endpoint.
+PERSON_RESPONSE_FIELDS = [
+    "crustdata_person_id",
+    "basic_profile.name",
+    "basic_profile.current_title",
+    "experience.employment_details.current",
+    "social_handles.professional_network_identifier.profile_url",
+    "metadata.updated_at",
+]
+
+
+def _check_operator_value(op: str, value: object) -> None:
+    if op in ("in", "not_in") and not isinstance(value, list):
+        raise ValueError(f"operator {op} requires a list value")
+    if op in ("is_null", "is_not_null") and value is not None:
+        raise ValueError(f"operator {op} requires value null")
+    if op not in ("is_null", "is_not_null") and value is None:
+        raise ValueError(f"operator {op} requires a value")
+
+
+class JobCondition(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    field: str
+    type: Operator
+    value: str | int | float | bool | list[str | int | float] | None
+
+    @field_validator("field")
+    @classmethod
+    def _known_field(cls, v: str) -> str:
+        if v not in JOB_FILTERABLE_FIELDS:
+            raise ValueError(f"{v!r} is not a supported Crustdata job filter field")
+        return v
+
+    @model_validator(mode="after")
+    def _value_matches_operator(self) -> Self:
+        _check_operator_value(self.type, self.value)
+        return self
+
+
+class JobConditionGroup(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    op: Literal["and", "or"]
+    conditions: list[JobCondition | JobConditionGroup] = Field(min_length=1)
+
+
+class JobSort(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    field: Literal["metadata.date_added", "metadata.date_updated"]
+    order: Literal["asc", "desc"]
+
+
+class JobSearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    filters: JobCondition | JobConditionGroup
+    limit: int = Field(default=20, ge=1, le=1000)
+    sorts: list[JobSort] | None = None
+    fields: list[str] | None = None
+    cursor: str | None = None
+
+    @model_validator(mode="after")
+    def _fields_known(self) -> Self:
+        for f in self.fields or []:
+            if f.split(".", 1)[0] not in JOB_SELECTABLE_GROUPS:
+                raise ValueError(f"{f!r} is not a selectable job field")
+        return self
+
+    def to_body(self) -> dict[str, Any]:
+        return self.model_dump(mode="json", exclude_none=True)
+
+
+class PersonCondition(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    field: str
+    type: Operator
+    value: str | int | float | bool | list[str | int | float] | None
+
+    @field_validator("field")
+    @classmethod
+    def _known_field(cls, v: str) -> str:
+        if v not in PERSON_FILTERABLE_FIELDS:
+            raise ValueError(f"{v!r} is not a supported Crustdata person filter field")
+        return v
+
+    @model_validator(mode="after")
+    def _value_matches_operator(self) -> Self:
+        _check_operator_value(self.type, self.value)
+        return self
+
+
+class PersonConditionGroup(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    op: Literal["and", "or"]
+    conditions: list[PersonCondition | PersonConditionGroup] = Field(min_length=1)
+
+
+class PersonSearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    filters: PersonCondition | PersonConditionGroup
+    limit: int = Field(default=20, ge=1, le=1000)
+    cursor: str | None = None
+
+    def to_body(self) -> dict[str, Any]:
+        body = self.model_dump(mode="json", exclude_none=True)
+        body["fields"] = list(PERSON_RESPONSE_FIELDS)
+        return body
+
+
+class _JobDetails(_Lenient):
+    title: str | None = None
+    category: str | None = None
+    url: str | None = None
+
+
+class _JobCompanyBasic(_Lenient):
+    crustdata_company_id: int | None = None
+    company_id: int | None = None  # filter-side name; accepted defensively
+    name: str | None = None
+    primary_domain: str | None = None
+
+
+class _JobCompany(_Lenient):
+    basic_info: _JobCompanyBasic | None = None
+
+
+class _JobMetadata(_Lenient):
+    date_added: str | None = None
+    date_updated: str | None = None
+
+
+class _JobContent(_Lenient):
+    description: str | None = None
+
+
+class JobListing(_Lenient):
+    crustdata_job_id: int | None = None
+    job_details: _JobDetails | None = None
+    company: _JobCompany | None = None
+    metadata: _JobMetadata | None = None
+    content: _JobContent | None = None
+
+
+class JobSearchResponse(_Lenient):
+    job_listings: list[JobListing]
+    next_cursor: str | None = None
+    total_count: int | None = None
+
+
+class _PersonBasic(_Lenient):
+    name: str | None = None
+    current_title: str | None = None
+
+
+class _Employment(_Lenient):
+    title: str | None = None
+    crustdata_company_id: int | None = None
+    start_date: str | None = None
+
+
+class _EmploymentDetails(_Lenient):
+    current: list[_Employment] | None = None
+
+
+class _Experience(_Lenient):
+    employment_details: _EmploymentDetails | None = None
+
+
+class _NetworkId(_Lenient):
+    profile_url: str | None = None
+
+
+class _Social(_Lenient):
+    professional_network_identifier: _NetworkId | None = None
+
+
+class _PersonMeta(_Lenient):
+    updated_at: str | None = None
+
+
+class PersonProfile(_Lenient):
+    crustdata_person_id: int
+    basic_profile: _PersonBasic | None = None
+    experience: _Experience | None = None
+    social_handles: _Social | None = None
+    metadata: _PersonMeta | None = None
+
+
+class PersonSearchResponse(_Lenient):
+    profiles: list[PersonProfile]
+    next_cursor: str | None = None
+    total_count: int | None = None
+
+
+def _iso_date(raw: str | None) -> date | None:
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw[:10])
+    except ValueError:
+        return None
+
+
+class JobPosting(BaseModel):
+    """A normalised posting. `posted_on` is the event date; `last_seen_on` is the provider's
+    last refresh, the best available evidence the posting was still listed."""
+
+    model_config = ConfigDict(frozen=True)
+
+    provider_job_id: int | None
+    company_id: int | None
+    company_name: str | None
+    title: str | None
+    category: str | None
+    url: str | None
+    posted_on: date | None
+    last_seen_on: date | None
+    description: str | None
+    retrieved_at: datetime
+
+
+class JobSearchPage(BaseModel):
+    postings: list[JobPosting]
+    next_cursor: str | None
+    total_count: int | None
+
+
+class PersonRecord(BaseModel):
+    """Minimal person data for the stated purpose. No contact details."""
+
+    model_config = ConfigDict(frozen=True)
+
+    provider_person_id: int
+    name: str | None
+    current_title: str | None
+    current_company_ids: list[int]
+    current_titles: list[str]
+    current_role_start: str | None
+    profile_url: str | None
+    provider_updated_at: str | None
+    retrieved_at: datetime
+
+
+class PersonSearchPage(BaseModel):
+    people: list[PersonRecord]
+    next_cursor: str | None
+    total_count: int | None
+
+
+MAX_DESCRIPTION_CHARS = 4000
+
+
+def normalise_job(listing: JobListing, retrieved_at: datetime) -> JobPosting:
+    d = listing.job_details or _JobDetails()
+    b = (listing.company.basic_info if listing.company else None) or _JobCompanyBasic()
+    m = listing.metadata or _JobMetadata()
+    desc = listing.content.description if listing.content else None
+    return JobPosting(
+        provider_job_id=listing.crustdata_job_id,
+        company_id=b.crustdata_company_id if b.crustdata_company_id is not None else b.company_id,
+        company_name=b.name,
+        title=d.title,
+        category=d.category,
+        url=d.url,
+        posted_on=_iso_date(m.date_added),
+        last_seen_on=_iso_date(m.date_updated),
+        description=desc[:MAX_DESCRIPTION_CHARS] if desc else None,
+        retrieved_at=retrieved_at,
+    )
+
+
+def normalise_person(p: PersonProfile, retrieved_at: datetime) -> PersonRecord:
+    current = (
+        (p.experience.employment_details.current or [])
+        if (p.experience and p.experience.employment_details)
+        else []
+    )
+    basic = p.basic_profile or _PersonBasic()
+    starts = [e.start_date for e in current if e.start_date]
+    return PersonRecord(
+        provider_person_id=p.crustdata_person_id,
+        name=basic.name,
+        current_title=basic.current_title or (current[0].title if current else None),
+        current_company_ids=[
+            e.crustdata_company_id for e in current if e.crustdata_company_id is not None
+        ],
+        current_titles=[e.title for e in current if e.title],
+        current_role_start=starts[0] if starts else None,
+        profile_url=(
+            p.social_handles.professional_network_identifier.profile_url
+            if p.social_handles and p.social_handles.professional_network_identifier
+            else None
+        ),
+        provider_updated_at=p.metadata.updated_at if p.metadata else None,
+        retrieved_at=retrieved_at,
+    )

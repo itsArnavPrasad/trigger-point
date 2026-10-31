@@ -1,0 +1,52 @@
+{
+  "_source": "hand-authored replay fixture (not a recorded model response)",
+  "icp_query": "B2B SaaS companies with growing customer support teams that run support in Zendesk, Intercom or Salesforce Service Cloud and handle high inbound ticket volume",
+  "countries": [
+    "United States",
+    "Canada"
+  ],
+  "employee_min": 50,
+  "employee_max": 1000,
+  "personas": [
+    {
+      "title": "Head of Support",
+      "function": "customer_success_and_support",
+      "why": "Owns ticket volume, response times and support headcount plans"
+    },
+    {
+      "title": "Support Operations Manager",
+      "function": "customer_success_and_support",
+      "why": "Owns the helpdesk configuration SupportPilot plugs into"
+    },
+    {
+      "title": "VP Customer Experience",
+      "function": "customer_success_and_support",
+      "why": "Budget owner when support sits under CX"
+    }
+  ],
+  "signal_types": [
+    "support_team_growth",
+    "active_hiring",
+    "headcount_growth"
+  ],
+  "exclusions": [
+    "Zendesk",
+    "Intercom",
+    "zendesk.com",
+    "intercom.com"
+  ],
+  "max_accounts": 10,
+  "assumptions": [
+    "North America first: the site says the company serves North America and the EU; the goal does not choose.",
+    "Helpdesk vendors are integration partners, so they are excluded as targets."
+  ],
+  "open_questions": [
+    "Should EU accounts be included in the first batch?",
+    "Is 5,000 tickets per month a hard qualification rule?"
+  ],
+  "tech_keywords": [
+    "Zendesk",
+    "Intercom",
+    "Salesforce Service Cloud"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "_source": "hand-authored replay fixture (template-filled from the case evidence; not a model response)",
+  "subject": "Support hiring at Brightlane HR",
+  "body": "Hi Sam,\n\nBrightlane HR had 4 open roles, as of 2026-10-21, Crustdata. Teams growing support often start by taking repetitive tickets off the queue. SupportPilot automatically resolves up to 45% of inbound tickets for teams handling more than 5,000 tickets per month. Would a short call next week be useful?\n\n[Your name]",
+  "hook_evidence_id": "ev_be1d6f8e5b98",
+  "proof_point_evidence_id": "ev_84fa806664b6",
+  "claims": [
+    {
+      "text": "Brightlane HR had 4 open roles, as of 2026-10-21, Crustdata.",
+      "kind": "fact",
+      "evidence_ids": [
+        "ev_be1d6f8e5b98"
+      ]
+    },
+    {
+      "text": "Teams growing support often start with repetitive tickets",
+      "kind": "inference",
+      "evidence_ids": []
+    },
+    {
+      "text": "Resolves up to 45% of inbound tickets above 5,000 tickets per month",
+      "kind": "fact",
+      "evidence_ids": [
+        "ev_84fa806664b6"
+      ]
+    }
+  ],
+  "follow_ups": [
+    {
+      "day_offset": 4,
+      "angle": "How answers link back to the help-center article",
+      "evidence_ids": [
+        "ev_c8b7252fd00f"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+{
+  "_source": "synthetic demo fixture (fictional companies, documented response shape)",
+  "_request": {
+    "method": "POST",
+    "path": "/job/search",
+    "body": {
+      "filters": {
+        "op": "and",
+        "conditions": [
+          {
+            "field": "company.basic_info.company_id",
+            "type": "in",
+            "value": [
+              1001,
+              1002,
+              1003,
+              1004,
+              1006
+            ]
+          },
+          {
+            "field": "metadata.date_added",
+            "type": "=>",
+            "value": "2026-10-01"
+          },
+          {
+            "op": "or",
+            "conditions": [
+              {
+                "field": "job_details.title",
+                "type": "(.)",
+                "value": "support"
+              },
+              {
+                "field": "job_details.title",
+                "type": "(.)",
+                "value": "customer success"
+              },
+              {
+                "field": "job_details.title",
+                "type": "(.)",
+                "value": "customer experience"
+              },
+              {
+                "field": "job_details.title",
+                "type": "(.)",
+                "value": "help desk"
+              },
+              {
+                "field": "job_details.title",
+                "type": "(.)",
+                "value": "helpdesk"
+              },
+              {
+                "field": "job_details.title",
+                "type": "(.)",
+                "value": "customer care"
+              },
+              {
+                "field": "job_details.title",
+                "type": "(.)",
+                "value": "customer service"
+              }
+            ]
+          }
+        ]
+      },
+      "limit": 25,
+      "sorts": [
+        {
+          "field": "metadata.date_added",
+          "order": "desc"
+        }
+      ],
+      "fields": [
+        "crustdata_job_id",
+        "job_details",
+        "company.basic_info",
+        "metadata",
+        "content.description"
+      ]
+    }
+  },
+  "status": 200,
+  "headers": {
+    "x-credits-used": "0.09",
+    "content-type": "application/json"
+  },
+  "body": {
+    "job_listings": [
+      {
+        "crustdata_job_id": 7001,
+        "job_details": {
+          "title": "Customer Support Specialist",
+          "category": "Customer Service",
+          "url": "https://jobs.example/postings/7001"
+        },
+        "company": {
+          "basic_info": {
+            "crustdata_company_id": 1001
+          }
+        },
+        "metadata": {
+          "date_added": "2026-10-24T00:00:00",
+          "date_updated": "2026-10-29T00:00:00"
+        },
+        "content": {
+          "description": "Join our support team. You will resolve 60+ tickets a day in Zendesk and help us build macros for common billing questions."
+        }
+      },
+      {
+        "crustdata_job_id": 7002,
+        "job_details": {
+          "title": "Support Operations Lead",
+          "category": "Customer Service",
+          "url": "https://jobs.example/postings/7002"
+        },
+        "company": {
+          "basic_info": {
+            "crustdata_company_id": 1001
+          }
+        },
+        "metadata": {
+          "date_added": "2026-10-17T00:00:00",
+          "date_updated": "2026-10-29T00:00:00"
+        },
+        "content": {
+          "description": "Own our helpdesk configuration and reporting."
+        }
+      },
+      {
+        "crustdata_job_id": 7003,
+        "job_details": {
+          "title": "Customer Success Manager",
+          "category": "Customer Service",
+          "url": "https://jobs.example/postings/7003"
+        },
+        "company": {
+          "basic_info": {
+            "crustdata_company_id": 1002
+          }
+        },
+        "metadata": {
+          "date_added": "2026-10-28T00:00:00",
+          "date_updated": "2026-10-29T00:00:00"
+        },
+        "content": {
+          "description": "Work with customers in Intercom to drive adoption."
+        }
+      }
+    ],
+    "next_cursor": null,
+    "total_count": 3
+  }
+}

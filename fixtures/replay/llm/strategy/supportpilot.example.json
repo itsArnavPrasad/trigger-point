@@ -1,0 +1,35 @@
+{
+  "_source": "hand-authored replay fixture (not a recorded model response)",
+  "market_category": "AI customer support automation",
+  "adjacent_categories": ["Helpdesk software", "Support outsourcing"],
+  "competitors": [
+    {"name": "Zendesk AI", "type": "direct", "basis": "inferred"},
+    {"name": "Hiring more agents", "type": "status_quo", "basis": "inferred"}
+  ],
+  "market_gaps": ["Mid-size SaaS teams without a dedicated support operations role"],
+  "differentiation_hypotheses": ["Works inside the helpdesk a team already uses, so there is no migration"],
+  "value_proposition": {
+    "target_segment": "B2B SaaS companies scaling a support team",
+    "problem": "Ticket volume grows faster than the team",
+    "current_alternative": "Hiring more agents",
+    "outcome": "Customers get answers faster without adding headcount",
+    "differentiation": "Plugs into the existing helpdesk",
+    "proof": "",
+    "customer_language": "Keep response times down without growing the team"
+  },
+  "capability_outcomes": [{"capability": "Drafts replies inside the helpdesk", "outcome": "Agents handle more tickets per day"}],
+  "positioning": "For SaaS support leaders whose ticket volume outgrows their team, SupportPilot adds capacity inside the helpdesk they already use.",
+  "message_pillars": [{"pillar": "Capacity without headcount", "proof": ""}],
+  "stakeholder_messages": [
+    {"role": "Functional owner", "message": "Hold response times while volume grows"},
+    {"role": "Economic buyer", "message": "Grow support capacity without growing cost at the same rate"}
+  ],
+  "claims_needing_proof": ["Any resolution-rate claim needs a customer source"],
+  "gtm_motion": {"motion": "Founder-led outbound", "why": "A small, identifiable buyer group with observable hiring signals", "alternatives_rejected": ["Paid media: no proof of demand yet"]},
+  "channels": [
+    {"channel": "email", "audience": "Heads of Support", "purpose": "Open a conversation", "offer": "A short workflow review", "timing": "When a support hiring signal is fresh", "owner": "Founder", "success_metric": "Qualified meetings"},
+    {"channel": "partner introductions", "audience": "Helpdesk consultants", "purpose": "Warm introductions", "offer": "Referral arrangement", "timing": "After three references", "owner": "Founder", "success_metric": "Introductions"}
+  ],
+  "experiments": [{"hypothesis": "Hiring signals beat headcount growth as a hook", "variant": "Hook type", "metric": "Positive reply rate", "decision_rule": "Decide after at least 30 sends per variant"}],
+  "open_questions": ["Which helpdesks matter most to the first ten customers?"]
+}

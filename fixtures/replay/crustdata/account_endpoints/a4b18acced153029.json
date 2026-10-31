@@ -1,0 +1,32 @@
+{
+  "_source": "synthetic demo fixture (fictional companies, documented response shape)",
+  "_request": {
+    "method": "GET",
+    "path": "/account/endpoints",
+    "body": null,
+    "params": {
+      "path": "/company/search"
+    }
+  },
+  "status": 200,
+  "headers": {
+    "x-credits-used": "0"
+  },
+  "body": {
+    "api_version": "2025-11-01",
+    "token_limit_rpm": null,
+    "endpoints": [
+      {
+        "path": "/company/search",
+        "category": "Company",
+        "status": "enabled",
+        "effective_rate_limit_rpm": 30,
+        "fields": {
+          "enabled": [],
+          "disabled": []
+        },
+        "base_credits": 0.03
+      }
+    ]
+  }
+}

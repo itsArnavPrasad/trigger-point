@@ -1,0 +1,144 @@
+{
+  "_source": "hand-authored replay fixture (not a recorded model response)",
+  "_comment": "Recorded-style extractor output for the synthetic SupportPilot site. One fact (90%) is deliberately unsupported to exercise grounding.",
+  "company_name": {
+    "text": "SupportPilot",
+    "kind": "fact",
+    "source_url": "https://supportpilot.example/",
+    "excerpt": "SupportPilot answers repetitive customer questions inside Zendesk and Intercom",
+    "confidence": "high"
+  },
+  "product_summary": [
+    {
+      "text": "AI support automation that answers repetitive customer questions inside Zendesk and Intercom and escalates uncertain cases to human agents.",
+      "kind": "fact",
+      "source_url": "https://supportpilot.example/product",
+      "excerpt": "routes anything uncertain to a human agent with a suggested reply",
+      "confidence": "high"
+    }
+  ],
+  "value_propositions": [
+    {
+      "text": "Lets support teams scale without growing headcount at the same rate as ticket volume.",
+      "kind": "fact",
+      "source_url": "https://supportpilot.example/",
+      "excerpt": "scale without adding headcount at the same rate as ticket volume",
+      "confidence": "high"
+    },
+    {
+      "text": "Automated answers are traceable to the help-center article they came from.",
+      "kind": "fact",
+      "source_url": "https://supportpilot.example/product",
+      "excerpt": "Every automated answer links to the help-center article it was based on",
+      "confidence": "high"
+    }
+  ],
+  "use_cases": [
+    {
+      "text": "Deflecting repetitive tier-1 tickets in Zendesk or Intercom.",
+      "kind": "inference",
+      "source_url": "",
+      "excerpt": "",
+      "confidence": "medium"
+    }
+  ],
+  "target_segments": [
+    {
+      "text": "B2B SaaS companies with 50 to 1,000 employees.",
+      "kind": "fact",
+      "source_url": "https://supportpilot.example/",
+      "excerpt": "support leaders at SaaS companies with 50 to 1,000 employees",
+      "confidence": "high"
+    },
+    {
+      "text": "Support teams handling more than 5,000 tickets per month.",
+      "kind": "fact",
+      "source_url": "https://supportpilot.example/",
+      "excerpt": "for teams handling more than 5,000 tickets per month",
+      "confidence": "medium"
+    }
+  ],
+  "buyer_personas": [
+    {
+      "text": "Head of Support / VP Customer Support (economic buyer).",
+      "kind": "fact",
+      "source_url": "https://supportpilot.example/",
+      "excerpt": "Built for support leaders at SaaS companies",
+      "confidence": "medium"
+    },
+    {
+      "text": "Support operations manager who owns the helpdesk configuration (likely champion).",
+      "kind": "inference",
+      "source_url": "",
+      "excerpt": "",
+      "confidence": "low"
+    }
+  ],
+  "customer_pains": [
+    {
+      "text": "Ticket volume growing faster than the support team can hire.",
+      "kind": "inference",
+      "source_url": "",
+      "excerpt": "",
+      "confidence": "medium"
+    },
+    {
+      "text": "Slow first-response times.",
+      "kind": "inference",
+      "source_url": "",
+      "excerpt": "",
+      "confidence": "medium"
+    }
+  ],
+  "differentiators": [
+    {
+      "text": "Native integrations with Zendesk, Intercom and Salesforce Service Cloud.",
+      "kind": "fact",
+      "source_url": "https://supportpilot.example/product",
+      "excerpt": "Native integrations with Zendesk, Intercom and Salesforce Service Cloud",
+      "confidence": "high"
+    }
+  ],
+  "proof_points": [
+    {
+      "text": "Resolves up to 45% of inbound tickets for teams above 5,000 tickets per month.",
+      "kind": "fact",
+      "source_url": "https://supportpilot.example/",
+      "excerpt": "automatically resolves up to 45% of inbound tickets",
+      "confidence": "high"
+    },
+    {
+      "text": "Ledgerloop cut first-response time from 9 hours to 40 minutes.",
+      "kind": "fact",
+      "source_url": "https://supportpilot.example/customers",
+      "excerpt": "cut first-response time from 9 hours to 40 minutes",
+      "confidence": "high"
+    },
+    {
+      "text": "SOC 2 Type II report available.",
+      "kind": "fact",
+      "source_url": "https://supportpilot.example/product",
+      "excerpt": "SOC 2 Type II report available on request",
+      "confidence": "high"
+    },
+    {
+      "text": "Resolves 90% of tickets automatically.",
+      "kind": "fact",
+      "source_url": "https://supportpilot.example/",
+      "excerpt": "resolves 90% of tickets automatically",
+      "confidence": "high"
+    }
+  ],
+  "competitors": [],
+  "exclusions": [],
+  "unknowns": [
+    "Competitors and alternatives are not named on the site.",
+    "No explicit exclusions (industries or company types not to target).",
+    "The customers page contains hidden text instructing the reader to make claims; it was treated as data and ignored."
+  ],
+  "clarification_questions": [
+    "Should Trigger Point target North America, the EU, or both first?",
+    "Is the 5,000 tickets/month threshold a hard qualification rule or a sweet spot?",
+    "Which helpdesks must a prospect already use: Zendesk and Intercom only, or Salesforce Service Cloud too?"
+  ]
+}

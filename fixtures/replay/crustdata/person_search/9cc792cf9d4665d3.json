@@ -1,0 +1,214 @@
+{
+  "_source": "synthetic demo fixture (fictional companies, documented response shape)",
+  "_request": {
+    "method": "POST",
+    "path": "/person/search",
+    "body": {
+      "filters": {
+        "op": "and",
+        "conditions": [
+          {
+            "field": "experience.employment_details.current.company_id",
+            "type": "in",
+            "value": [
+              1002,
+              1001,
+              1006,
+              1003
+            ]
+          },
+          {
+            "op": "or",
+            "conditions": [
+              {
+                "field": "experience.employment_details.current.title",
+                "type": "(.)",
+                "value": "support"
+              },
+              {
+                "field": "experience.employment_details.current.title",
+                "type": "(.)",
+                "value": "customer success"
+              },
+              {
+                "field": "experience.employment_details.current.title",
+                "type": "(.)",
+                "value": "customer experience"
+              },
+              {
+                "field": "experience.employment_details.current.title",
+                "type": "(.)",
+                "value": "help desk"
+              },
+              {
+                "field": "experience.employment_details.current.title",
+                "type": "(.)",
+                "value": "helpdesk"
+              },
+              {
+                "field": "experience.employment_details.current.title",
+                "type": "(.)",
+                "value": "customer care"
+              },
+              {
+                "field": "experience.employment_details.current.title",
+                "type": "(.)",
+                "value": "customer service"
+              }
+            ]
+          }
+        ]
+      },
+      "limit": 12,
+      "fields": [
+        "crustdata_person_id",
+        "basic_profile.name",
+        "basic_profile.current_title",
+        "experience.employment_details.current",
+        "social_handles.professional_network_identifier.profile_url",
+        "metadata.updated_at"
+      ]
+    }
+  },
+  "status": 200,
+  "headers": {
+    "x-credits-used": "1.15",
+    "content-type": "application/json"
+  },
+  "body": {
+    "profiles": [
+      {
+        "crustdata_person_id": 8001,
+        "basic_profile": {
+          "name": "Maya Example",
+          "current_title": "Head of Support"
+        },
+        "experience": {
+          "employment_details": {
+            "current": [
+              {
+                "title": "Head of Support",
+                "crustdata_company_id": 1001,
+                "start_date": "2025-03-01"
+              }
+            ]
+          }
+        },
+        "social_handles": {
+          "professional_network_identifier": {
+            "profile_url": "https://profiles.example/8001"
+          }
+        },
+        "metadata": {
+          "updated_at": "2026-10-18T00:00:00Z"
+        }
+      },
+      {
+        "crustdata_person_id": 8002,
+        "basic_profile": {
+          "name": "Leo Example",
+          "current_title": "Customer Support Specialist"
+        },
+        "experience": {
+          "employment_details": {
+            "current": [
+              {
+                "title": "Customer Support Specialist",
+                "crustdata_company_id": 1001,
+                "start_date": "2026-01-10"
+              }
+            ]
+          }
+        },
+        "social_handles": {
+          "professional_network_identifier": {
+            "profile_url": "https://profiles.example/8002"
+          }
+        },
+        "metadata": {
+          "updated_at": "2026-10-18T00:00:00Z"
+        }
+      },
+      {
+        "crustdata_person_id": 8003,
+        "basic_profile": {
+          "name": "Priya Example",
+          "current_title": "Director, Customer Support"
+        },
+        "experience": {
+          "employment_details": {
+            "current": [
+              {
+                "title": "Director, Customer Support",
+                "crustdata_company_id": 1002,
+                "start_date": "2024-07-01"
+              }
+            ]
+          }
+        },
+        "social_handles": {
+          "professional_network_identifier": {
+            "profile_url": "https://profiles.example/8003"
+          }
+        },
+        "metadata": {
+          "updated_at": "2026-10-18T00:00:00Z"
+        }
+      },
+      {
+        "crustdata_person_id": 8004,
+        "basic_profile": {
+          "name": "Sam Example",
+          "current_title": "VP Customer Experience"
+        },
+        "experience": {
+          "employment_details": {
+            "current": [
+              {
+                "title": "VP Customer Experience",
+                "crustdata_company_id": 1003,
+                "start_date": "2023-11-01"
+              }
+            ]
+          }
+        },
+        "social_handles": {
+          "professional_network_identifier": {
+            "profile_url": "https://profiles.example/8004"
+          }
+        },
+        "metadata": {
+          "updated_at": "2026-10-18T00:00:00Z"
+        }
+      },
+      {
+        "crustdata_person_id": 8005,
+        "basic_profile": {
+          "name": "Noah Example",
+          "current_title": "Head of Support"
+        },
+        "experience": {
+          "employment_details": {
+            "current": [
+              {
+                "title": "Head of Support",
+                "crustdata_company_id": 4242,
+                "start_date": "2026-09-01"
+              }
+            ]
+          }
+        },
+        "social_handles": {
+          "professional_network_identifier": {
+            "profile_url": "https://profiles.example/8005"
+          }
+        },
+        "metadata": {
+          "updated_at": "2026-10-18T00:00:00Z"
+        }
+      }
+    ],
+    "next_cursor": null,
+    "total_count": 5
+  }
+}
