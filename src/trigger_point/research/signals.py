@@ -29,6 +29,7 @@ FUNCTION_JOB_KEYWORDS: dict[str, tuple[str, ...]] = {
         "customer care",
         "customer service",
     ),
+    "education": ("teacher", "academic", "curriculum", "principal", "faculty", "digital learning"),
     "sales": ("sales", "account executive", "sales development", "business development rep"),
     "marketing": ("marketing", "demand generation", "growth marketing", "content marketing"),
     "engineering": ("engineer", "developer", "sre", "devops"),

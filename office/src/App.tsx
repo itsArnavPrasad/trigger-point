@@ -1,19 +1,43 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useRef, useState } from "react"
 import { follow, get, post, token } from './api'
 import { Accounts, Activity, Campaign, Committee, Costs, EvidenceAudit, Gate, IcpPage, Integrations, Overview, ProfilePage, Signals } from './components/Dashboards'
-import { FinancePage, MeetingsPage, OutreachPage, PipelinePage, StrategyPage } from './components/Pages'
+import Home, { NeedsYou } from './components/Home'
+import Icon from './components/Icon'
+import { FinancePage, OutreachPage, PipelinePage, StrategyPage } from './components/Pages'
 import { LearningPage } from './components/Loop'
+import MeetingsPage from './components/Meetings'
 import Room, { DESKS } from './components/Room'
-import { LIVENESS_LABEL, agentLabel, flowSteps, liveness, modeLabel, permissionLabel, stateLabel } from './logic'
+import { LIVENESS_LABEL, agentLabel, flowSteps, liveness, modeLabel, permissionLabel, splitMeetings, stateLabel } from './logic'
 import type { Agent, Bootstrap, MissionView, Permission } from './types'
 
-const PAGES: [string, string][] = [
-  ['office', 'Office'], ['profile', 'Business profile'], ['strategy', 'Strategy'], ['icp', 'ICP'], ['accounts', 'Accounts'], ['signals', 'Signals'],
-  ['people', 'People'], ['evidence', 'Evidence'], ['campaign', 'Campaign'], ['outreach', 'Outreach'], ['meetings', 'Meetings'], ['pipeline', 'Pipeline'],
-  ['learning', 'Learning'], ['finance', 'Finance'], ['integrations', 'Integrations'],
+type NavItem = [id: string, label: string, icon: string]
+const NAV: [string | null, NavItem[]][] = [
+  [null, [['home', 'Dashboard', 'dashboard'], ['office', 'Live office', 'office']]],
+  ['Understand', [['profile', 'Business profile', 'profile'], ['strategy', 'Strategy', 'strategy'], ['icp', 'Ideal customer', 'icp']]],
+  ['Research', [['accounts', 'Accounts', 'accounts'], ['signals', 'Buying signals', 'signals'], ['people', 'People', 'people'], ['evidence', 'Evidence', 'evidence']]],
+  ['Engage', [['campaign', 'Campaign draft', 'campaign'], ['outreach', 'Outreach', 'outreach'], ['meetings', 'Meetings', 'meetings']]],
+  ['Learn', [['pipeline', 'Pipeline', 'pipeline'], ['learning', 'Learnings', 'learning'], ['finance', 'Spend', 'finance']]],
 ]
+const SUBTITLE: Record<string, string> = {
+  office: 'Eight agents at their desks. Click anyone to see their work.',
+  profile: 'What Trigger Point read on your site. Every fact carries its source.',
+  strategy: 'Positioning, motion and channels. Hypotheses until outcomes prove them.',
+  icp: 'Who to sell to, what disqualifies them, and how sure we are.',
+  accounts: 'Every account found, scored by deterministic code, with reasons for each rejection.',
+  signals: 'Dated reasons an account may need you now.',
+  people: 'The buying committee at each account, verified against the employer.',
+  evidence: 'Every claim, its source, and whether it passed the audit.',
+  campaign: 'The first touch, every claim mapped to evidence.',
+  outreach: 'Name targets and write verified messages for each audience.',
+  meetings: 'Calls booked and held, and what was said.',
+  pipeline: 'Replies, meetings and opportunities you have logged.',
+  learning: 'Changes Trigger Point proposes from real outcomes, for you to approve.',
+  finance: 'What the mission has cost. Actual and estimated never mix.',
+  integrations: 'What is connected, and what each connector is allowed to do.',
+}
+const LABEL = Object.fromEntries([...NAV.flatMap(([, items]) => items.map(([id, label]) => [id, label])), ['integrations', 'Integrations']])
 
-function Page({ id, view, boot }: { id: string; view: MissionView; boot: Bootstrap }) {
+function Page({ id, view, boot, focus }: { id: string; view: MissionView; boot: Bootstrap; focus?: string | null }) {
   switch (id) {
     case 'profile': return <ProfilePage v={view} />
     case 'strategy': return <StrategyPage v={view} />
@@ -24,7 +48,7 @@ function Page({ id, view, boot }: { id: string; view: MissionView; boot: Bootstr
     case 'evidence': return <EvidenceAudit v={view} />
     case 'campaign': return <Campaign v={view} />
     case 'outreach': return <OutreachPage v={view} />
-    case 'meetings': return <MeetingsPage v={view} wispr={boot.health.find(h => h.id === 'wispr')?.state ?? 'not_connected'} />
+    case 'meetings': return <MeetingsPage v={view} wispr={boot.health.find(h => h.id === 'wispr')?.state ?? 'not_connected'} focus={focus} />
     case 'pipeline': return <PipelinePage v={view} />
     case 'learning': return <LearningPage v={view} />
     case 'finance': return <FinancePage v={view} />
@@ -46,7 +70,6 @@ function AgentDashboard({ agent, view, boot, tab, setTab, onClose, onAnswer }: {
   const tabs: [string, string][] = director
     ? [['overview', 'Overview'], ['integrations', 'Integrations'], ['costs', 'Costs'], ['activity', 'Activity']]
     : agent.role === 'icp-strategist' ? [['strategy', 'Strategy'], ROLE_TABS[agent.role], ['profile', 'Business profile'], ['activity', 'Activity']]
-    : agent.role === 'evidence-auditor' ? [ROLE_TABS[agent.role], ['activity', 'Activity']]
     : [ROLE_TABS[agent.role], ['activity', 'Activity']]
   const asks = view.permissions.filter(p => p.dashboard === agent.role)
   useEffect(() => {
@@ -57,22 +80,22 @@ function AgentDashboard({ agent, view, boot, tab, setTab, onClose, onAnswer }: {
   const d = DESKS[agent.role]
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="dashboard" role="dialog" aria-label={agent.name} onClick={e => e.stopPropagation()} data-testid="dashboard">
-        <header className="dash-head">
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={agent.name} onClick={e => e.stopPropagation()} data-testid="dashboard">
+        <header className="sheet-head">
           <img src={`/art/characters/${d.sprite}-front-left.png`} alt="" />
           <div><h2>{agent.name}</h2><p>{agent.purpose}</p></div>
-          <span className={`pill s-${agent.status}`}>{agentLabel(agent, true)}</span>
+          <span className={`status-pill s-${agent.status}`}><i className="dot" />{agentLabel(agent, true)}</span>
           <button className="close" onClick={onClose} aria-label="Close">×</button>
         </header>
         {asks.map(p => (
           <div className="approval-bar" key={p.id}>
             <span>{permissionLabel(p)}</span>
-            <button className="deny" onClick={() => onAnswer(p, 'deny')}>Deny</button>
-            <button className="allow" onClick={() => onAnswer(p, 'allow')}>Approve</button>
+            <button className="btn destructive" onClick={() => onAnswer(p, 'deny')}>Deny</button>
+            <button className="btn primary" onClick={() => onAnswer(p, 'allow')}>Approve</button>
           </div>
         ))}
-        <nav>{tabs.map(([id, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}</nav>
-        <div className="dash-body">
+        <nav className="segmented" aria-label="Sections">{tabs.map(([id, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}</nav>
+        <div className="sheet-body">
           {tab === 'activity' ? <Activity a={agent} />
             : tab === 'integrations' ? <Integrations health={boot.health} harness={boot.harness} />
             : tab === 'strategy' ? <StrategyPage v={view} />
@@ -102,20 +125,73 @@ function NewMission({ onStart, onClose, mode }: { onStart: (b: Record<string, st
       try { await onStart(f) } catch (err) { setError((err as Error).message); setBusy(false) }
     }}>
       <h2>Start a mission</h2>
+      <p className="muted">Give Trigger Point your website and a goal. It works out who to sell to, why now, and how to reach them.</p>
       {mode === 'replay' && <p className="alert">FIXTURE DATA: only supportpilot.example has fixtures. Results are labelled.</p>}
       {mode === 'mixed' && <p className="alert">PART FIXTURE: real sites can be read, but account search has no live Crustdata key yet.</p>}
       <label>Website<input required value={f.website_url} onChange={set('website_url')} placeholder="yourcompany.com" /></label>
       <label>Goal<input required value={f.goal} onChange={set('goal')} placeholder="Book 10 meetings with…" /></label>
-      <label>What does the product do? <small>Recommended. Needed if your site is a JavaScript app.</small><textarea rows={2} value={f.product_description} onChange={set('product_description')} /></label>
+      <label>What does the product do? <small>Recommended. Needed if your site is a JavaScript app.</small><textarea rows={3} value={f.product_description} onChange={set('product_description')} /></label>
       <div className="two">
-        <label>Target geography<input value={f.target_geography} onChange={set('target_geography')} /></label>
+        <label>Target geography<input value={f.target_geography} onChange={set('target_geography')} placeholder="India" /></label>
         <label>Time horizon<input value={f.time_horizon} onChange={set('time_horizon')} placeholder="90 days" /></label>
       </div>
       {error && <p className="alert bad">{error}</p>}
-      <div className="row">{onClose && <button type="button" className="ghost" onClick={onClose}>Close</button>}<button className="allow" disabled={busy}>{busy ? 'Starting…' : 'Start mission'}</button></div>
+      <div className="row">{onClose && <button type="button" className="btn plain" onClick={onClose}>Cancel</button>}<button className="btn primary" disabled={busy}>{busy ? 'Starting…' : 'Start mission'}</button></div>
     </form>
   )
 }
+
+function Inspector({ view, connected, page, onOpen, onAnswer, log, chat, setChat, send, notice }: {
+  view: MissionView; connected: boolean; page: string; onOpen: (role: string, tab: string) => void
+  onAnswer: (p: Permission, d: 'allow' | 'deny') => void; log: RefObject<HTMLDivElement>
+  chat: string; setChat: (s: string) => void; send: (e: { preventDefault: () => void }) => void; notice: string
+}) {
+  const m = view.mission
+  const stalled = view.approvals.find(a => a.status === 'pending' && !view.permissions.length)
+  const steps = flowSteps(m)
+  const at = steps.findIndex(s => s.phase === 'current')
+  return (
+    <aside className="inspector" aria-label="Mission Director">
+      {page !== 'home' && view.permissions.length > 0 && (
+        <section className="insp-needs" data-testid="needs-you">
+          <h3>Needs you</h3>
+          {view.permissions.map(p => (
+            <div className="ask-card" key={p.id}>
+              <p>{permissionLabel(p)}</p>
+              <div className="row">
+                <button className="btn plain small" onClick={() => onOpen(p.dashboard, p.dashboard === 'mission-director' ? 'overview' : 'work')}>Review</button>
+                <button className="btn destructive small" onClick={() => onAnswer(p, 'deny')}>Deny</button>
+                <button className="btn primary small" onClick={() => onAnswer(p, 'allow')}>Approve</button>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+      {stalled && <section className="insp-quiet"><p>{stalled.summary}</p><small>Waiting for the Director to ask. Message it below if it has stopped.</small></section>}
+      <section className="insp-progress">
+        <div className="insp-state"><h3>{stateLabel(m.state)}</h3><small>{at >= 0 ? `Step ${at + 1} of ${steps.length}` : ''}</small></div>
+        {m.wait_reason && <p className="alert">{m.wait_reason}</p>}
+        {m.failure && <p className="alert bad">{m.failure}</p>}
+        <ol className="flow">{steps.map(s => <li key={s.state} className={s.phase} title={s.label} />)}</ol>
+        <ul className="team">{view.agents.map(a => (
+          <li key={a.role}><button onClick={() => onOpen(a.role, a.role === 'mission-director' ? 'overview' : 'work')}><i className={`dot s-${a.status}`} />{a.name}<span>{agentLabel(a, connected)}</span></button></li>
+        ))}</ul>
+      </section>
+      <section className="chat">
+        <h3>Mission Director</h3>
+        <div className="log" ref={log}>
+          {view.messages.map(x => <p key={x.seq} className={x.sender}>{x.text}</p>)}
+          {view.messages.length === 0 && <p className="system">No messages. This mission was not started from the Office.</p>}
+        </div>
+        {notice && <p className="alert bad">{notice}</p>}
+        <form onSubmit={send}><input value={chat} onChange={e => setChat(e.target.value)} placeholder="Message the Director" aria-label="Message the Director" /><button className="send" disabled={!chat.trim()} aria-label="Send">↑</button></form>
+      </section>
+    </aside>
+  )
+}
+
+const wide = () => typeof window !== 'undefined' && window.innerWidth >= 1280
+const narrow = () => typeof window !== 'undefined' && window.innerWidth < 900
 
 export default function App() {
   const [boot, setBoot] = useState<Bootstrap | null>(null)
@@ -125,7 +201,10 @@ export default function App() {
   const [denied, setDenied] = useState(false)
   const [open, setOpen] = useState<{ role: string; tab: string } | null>(null)
   const [creating, setCreating] = useState(false)
-  const [page, setPage] = useState('office')
+  const [page, setPage] = useState('home')
+  const [meetingFocus, setMeetingFocus] = useState<string | null>(null)
+  const [sidebar, setSidebar] = useState(!narrow())
+  const [inspector, setInspector] = useState(wide())
   const [chat, setChat] = useState('')
   const [notice, setNotice] = useState('')
   const missionRef = useRef<string | null>(null)
@@ -150,11 +229,11 @@ export default function App() {
   }, [refresh])
   useEffect(() => { if (missionId) void refresh() }, [missionId, refresh])
   useEffect(() => { const t = setInterval(() => void refresh(), 30000); return () => clearInterval(t) }, [refresh])
-  useEffect(() => { log.current?.scrollTo(0, 1e6) }, [view?.messages.length])
+  useEffect(() => { log.current?.scrollTo(0, 1e6) }, [view?.messages.length, inspector])
 
   const start = async (body: Record<string, string>) => {
     const out = await post<{ mission_id: string }>('/missions', body)
-    setCreating(false); setMissionId(out.mission_id)
+    setCreating(false); setMissionId(out.mission_id); setPage('home')
   }
   const answer = async (p: Permission, decision: 'allow' | 'deny') => {
     const message = decision === 'deny' ? 'The user denied this in the Trigger Point Office.' : undefined
@@ -166,86 +245,94 @@ export default function App() {
     if (!chat.trim() || !view) return
     try { await post(`/missions/${view.mission.id}/messages`, { text: chat }); setChat('') } catch (err) { setNotice((err as Error).message) }
   }
+  const go = (p: string) => { setPage(p); if (narrow()) setSidebar(false); document.querySelector('.content')?.scrollTo(0, 0) }
+  const openAgent = (role: string, tab: string) => view && setOpen({ role, tab })
 
-  if (denied) return <main className="gate"><h1>Trigger Point Office</h1><p>Open the link that <code>scripts/office.sh</code> printed. This page needs its access token.</p></main>
+  if (denied) return <main className="gate"><h1>Trigger Point</h1><p>Open the link that <code>scripts/office.sh</code> printed. This page needs its access token.</p></main>
 
   const m = view?.mission
   const live = liveness(view, connected, view?.run?.status === 'working')
   const hour = new Date().getHours()
   const agent = open && view ? view.agents.find(a => a.role === open.role) : undefined
   const blanks: Agent[] = view?.agents ?? Object.keys(DESKS).map(role => ({ role, name: role.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' '), purpose: '', status: 'idle', task: null, tasks: [], step: null, tools: [], hook_activity: [] }))
-  const stalled = view?.approvals.find(a => a.status === 'pending' && !view.permissions.length)
+  const badge: Record<string, number> = view ? {
+    home: view.permissions.length,
+    accounts: view.funnel.qualified ?? 0,
+    meetings: splitMeetings(view.meetings, new Date().toISOString().slice(0, 10)).upcoming.length,
+  } : {}
 
   return (
-    <div className="app">
-      <header className="top">
-        <strong className="brand">Trigger Point<span>Office</span></strong>
-        {boot && boot.missions.length > 0 && (
-          <select aria-label="Mission" value={missionId ?? ''} onChange={e => setMissionId(e.target.value)}>
-            {boot.missions.map(x => <option key={x.id} value={x.id}>{x.website_url} · {stateLabel(x.state)}</option>)}
-          </select>
-        )}
-        {m && <span className={`mode m-${m.mode}`} title={Object.entries(m.provider_modes).map(([k, v]) => `${k}: ${v}`).join(', ')}>{modeLabel(m.mode)}</span>}
-        <span className={`live l-${live}`} data-testid="liveness"><i />{LIVENESS_LABEL[live]}</span>
-        <span className="grow" />
-        {m && !['COMPLETE', 'FAILED', 'CANCELLED'].includes(m.state) && <button className="ghost" onClick={() => void post(`/missions/${m.id}/cancel`)}>Cancel mission</button>}
-        <button className="allow" onClick={() => setCreating(true)}>New mission</button>
-      </header>
-      <nav className="pages" aria-label="Workspace">
-        {PAGES.map(([id, label]) => <button key={id} className={page === id ? 'on' : ''} onClick={() => setPage(id)} data-page={id}>{label}</button>)}
-      </nav>
-      {page !== 'office' && <main className="page">{view && boot ? <Page id={page} view={view} boot={boot} /> : boot && page === 'integrations' ? <Integrations health={boot.health} harness={boot.harness} /> : <p className="empty">Start a mission first.</p>}</main>}
-      <main className="stage" hidden={page !== 'office'}>
-        <div className="room-wrap">
-          <Room agents={blanks} tasks={view?.tasks ?? []} health={boot?.health ?? []} connected={connected} night={hour < 7 || hour >= 19}
-            onAgent={role => view && setOpen({ role, tab: role === 'mission-director' ? 'overview' : 'work' })}
-            onObject={(role, tab) => view && setOpen({ role, tab })} />
-          {!view && boot && !creating && <div className="center"><NewMission onStart={start} mode={boot.mode} /></div>}
+    <div className={`shell${sidebar ? '' : ' no-sidebar'}${inspector && view ? ' with-inspector' : ''}`}>
+      <aside className="sidebar" aria-label="Workspace">
+        <div className="brand"><span className="brand-mark"><Icon name="icp" size={16} /></span><div><b>Trigger Point</b><small>GTM operating system</small></div></div>
+        <nav>
+          {NAV.map(([group, items]) => (
+            <div className="nav-group" key={group ?? 'top'}>
+              {group && <h4>{group}</h4>}
+              {items.map(([id, label, icon]) => (
+                <button key={id} className={page === id ? 'on' : ''} onClick={() => go(id)} data-page={id} aria-current={page === id ? 'page' : undefined}>
+                  <Icon name={icon} /><span>{label}</span>
+                  {badge[id] ? <em className={id === 'home' ? 'warn' : ''}>{badge[id]}</em> : null}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div className="sidebar-foot">
+          <button className={page === 'integrations' ? 'on' : ''} onClick={() => go('integrations')} data-page="integrations"><Icon name="integrations" /><span>Integrations</span></button>
+          <ul className="conn">
+            {boot?.health.filter(h => ['claude', 'web', 'llm', 'crustdata'].includes(h.id)).map(h => <li key={h.id}><i className={`hs-${h.state}`} />{h.id === 'llm' ? 'LLM' : h.name}<span>{h.state.replace('_', ' ')}</span></li>)}
+          </ul>
         </div>
-        <aside className="rail">
-          {view && m ? <>
-            {view.permissions.length > 0 && (
-              <section className="needs" data-testid="needs-you">
-                <h3>Needs you ({view.permissions.length})</h3>
-                {view.permissions.map(p => (
-                  <div className="ask-card" key={p.id}>
-                    <p>{permissionLabel(p)}</p>
-                    <div className="row">
-                      <button className="ghost" onClick={() => setOpen({ role: p.dashboard, tab: p.dashboard === 'mission-director' ? 'overview' : 'work' })}>Review</button>
-                      <button className="deny" onClick={() => void answer(p, 'deny')}>Deny</button>
-                      <button className="allow" onClick={() => void answer(p, 'allow')}>Approve</button>
-                    </div>
-                  </div>
-                ))}
-              </section>
-            )}
-            {stalled && <section className="needs quiet"><p>{stalled.summary}</p><small>Waiting for the Director to ask. Message it below if it has stopped.</small></section>}
-            <section className="progress">
-              <h3>{stateLabel(m.state)}</h3>
-              {m.wait_reason && <p className="alert">{m.wait_reason}</p>}
-              {m.failure && <p className="alert bad">{m.failure}</p>}
-              <ol className="flow">{flowSteps(m).map(s => <li key={s.state} className={s.phase} title={s.label} />)}</ol>
-              <ul className="team">{view.agents.map(a => (
-                <li key={a.role}><button onClick={() => setOpen({ role: a.role, tab: a.role === 'mission-director' ? 'overview' : 'work' })}><i className={`dot s-${a.status}`} />{a.name}<span>{agentLabel(a, connected)}</span></button></li>
-              ))}</ul>
-            </section>
-            <section className="chat">
-              <h3>Mission Director</h3>
-              <div className="log" ref={log}>
-                {view.messages.map(x => <p key={x.seq} className={x.sender}>{x.text}</p>)}
-                {view.messages.length === 0 && <p className="system">No messages. This mission was not started from the Office.</p>}
+      </aside>
+      {sidebar && narrow() && <div className="scrim" onClick={() => setSidebar(false)} />}
+
+      <div className="main">
+        <header className="toolbar">
+          <button className="icon-btn" onClick={() => setSidebar(!sidebar)} aria-label={sidebar ? 'Hide sidebar' : 'Show sidebar'} title={sidebar ? 'Hide sidebar' : 'Show sidebar'}><Icon name="sidebar" /></button>
+          {boot && boot.missions.length > 0 && (
+            <select className="mission-select" aria-label="Mission" value={missionId ?? ''} onChange={e => setMissionId(e.target.value)}>
+              {boot.missions.map(x => <option key={x.id} value={x.id}>{x.website_url} · {stateLabel(x.state)}</option>)}
+            </select>
+          )}
+          {m && <span className={`mode-chip m-${m.mode}`} title={Object.entries(m.provider_modes).map(([k, v]) => `${k}: ${v}`).join(', ')}>{modeLabel(m.mode)}</span>}
+          <span className={`live-chip l-${live}`} data-testid="liveness"><i />{LIVENESS_LABEL[live]}</span>
+          <span className="grow" />
+          {view && <span className="cost">${view.costs.claude_usd.toFixed(3)} · {view.costs.crustdata_credits.actual ?? '0'} credits</span>}
+          {m && !['COMPLETE', 'FAILED', 'CANCELLED'].includes(m.state) && <button className="btn plain" onClick={() => void post(`/missions/${m.id}/cancel`)}>Cancel mission</button>}
+          {view && <button className={`icon-btn${inspector ? ' on' : ''}`} onClick={() => setInspector(!inspector)} aria-label="Mission Director" title="Mission Director"><Icon name="chat" />{view.permissions.length > 0 && <em className="dot-badge" />}</button>}
+          <button className="btn primary" onClick={() => setCreating(true)}><Icon name="plus" size={15} /><span className="btn-label">New mission</span></button>
+        </header>
+
+        <div className="workspace">
+          <main className={`content${page === 'office' ? ' is-office' : ''}`}>
+            {page === 'office' ? (
+              <div className="office-stage">
+                <div className="room-card"><div className="room-fit">
+                  <Room agents={blanks} tasks={view?.tasks ?? []} health={boot?.health ?? []} connected={connected} night={hour < 7 || hour >= 19}
+                    onAgent={role => openAgent(role, role === 'mission-director' ? 'overview' : 'work')}
+                    onObject={(role, tab) => openAgent(role, tab)} />
+                </div></div>
+                <p className="office-caption">{view ? SUBTITLE.office : 'Eight agents wait at their desks. They only move when real work starts.'}</p>
               </div>
-              {notice && <p className="alert bad">{notice}</p>}
-              <form onSubmit={send}><input value={chat} onChange={e => setChat(e.target.value)} placeholder="Message the Director" aria-label="Message the Director" /><button disabled={!chat.trim()}>Send</button></form>
-            </section>
-          </> : <section className="progress"><h3>No mission yet</h3><p className="muted">Eight agents wait at their desks. They only move when real work starts.</p></section>}
-        </aside>
-      </main>
-      <footer className="bottom">
-        {boot?.health.filter(h => ['claude', 'web', 'llm', 'crustdata'].includes(h.id)).map(h => <span key={h.id}><i className={`hs-${h.state}`} />{h.id === 'llm' ? 'LLM' : h.name}: {h.state.replace('_', ' ')}</span>)}
-        <span className="grow" />
-        {view && <span>Claude ${view.costs.claude_usd.toFixed(3)} · {view.costs.crustdata_credits.actual ?? '0'} credits</span>}
-      </footer>
+            ) : page === 'home' ? (
+              view ? <Home v={view} connected={connected} live={live} go={go} onAnswer={(p, d) => void answer(p, d)} onReview={p => openAgent(p.dashboard, p.dashboard === 'mission-director' ? 'overview' : 'work')} onNotes={id => { setMeetingFocus(id); go('meetings') }} />
+                : boot ? <div className="welcome"><div className="welcome-copy"><span className="eyebrow">Trigger Point</span><h1>Find out who needs you, and why now.</h1><p>Give it your website and a goal. Agents read your business, pick the accounts with a real reason to talk, prove it with evidence, and draft outreach you approve.</p></div><NewMission onStart={start} mode={boot.mode} /></div>
+                : <p className="loading">Loading…</p>
+            ) : (
+              <div className="page">
+                <header className="page-head"><h1>{LABEL[page]}</h1><p>{SUBTITLE[page]}</p></header>
+                {view && <NeedsYou v={view} onAnswer={(p, d) => void answer(p, d)} onReview={p => openAgent(p.dashboard, p.dashboard === 'mission-director' ? 'overview' : 'work')} />}
+                {view && boot ? <Page id={page} view={view} boot={boot} focus={meetingFocus} />
+                  : boot && page === 'integrations' ? <Integrations health={boot.health} harness={boot.harness} />
+                  : <div className="empty-state big"><Icon name="dashboard" size={32} /><p>No mission yet</p><small>Start a mission to fill this page.</small><button className="btn primary" onClick={() => setCreating(true)}>New mission</button></div>}
+              </div>
+            )}
+          </main>
+          {inspector && view && <Inspector view={view} connected={connected} page={page} onOpen={openAgent} onAnswer={(p, d) => void answer(p, d)} log={log} chat={chat} setChat={setChat} send={send} notice={notice} />}
+        </div>
+      </div>
+
       {agent && view && boot && <AgentDashboard agent={agent} view={view} boot={boot} tab={open!.tab} setTab={t => setOpen({ role: agent.role, tab: t })} onClose={() => setOpen(null)} onAnswer={(p, d) => void answer(p, d)} />}
       {creating && boot && <div className="overlay" onClick={() => setCreating(false)}><div className="modal" onClick={e => e.stopPropagation()}><NewMission onStart={start} onClose={() => setCreating(false)} mode={boot.mode} /></div></div>}
     </div>

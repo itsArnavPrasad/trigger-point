@@ -7,6 +7,9 @@ Build Trigger Point: an evidence-first GTM operating system. It helps a company 
 
 The full product spec is `docs/GTM_OS_PRODUCT_SPEC.md`. Current truth is `docs/GTMO_AUDIT_REPORT.md`. Do not claim a feature exists because the spec describes it.
 
+## Who this is for
+Read `docs/FOUNDER_CONTEXT.md` first. It covers who the founders are, the AI tutor startup Trigger Point is built for first (selling to schools versus parents), and the "we just press the trigger" philosophy, under which meetings get booked and briefed for us.
+
 ## Read before changing architecture
 - `docs/GTM_OS_PRODUCT_SPEC.md` (the target)
 - `docs/GTMO_AUDIT_REPORT.md` (what is true today)

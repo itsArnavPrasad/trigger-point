@@ -884,10 +884,13 @@ class WorkflowService:
         rid = stable_id("mtg", mission_id, len(self.meetings(mission_id)), fields)
         record = {**fields, "id": rid, "mission_id": mission_id, "source": "manual"}
         self.engine.save_record("meeting", rid, mission_id, record)
+        if fields.get("status") in ("missed", "cancelled"):
+            return {"ok": True, "id": rid}  # nothing happened, so no outcome
+        upcoming =str(fields.get("held_on") or "") > datetime.now(UTC).date().isoformat()
         return self.record_outcome(
             mission_id,
             {
-                "kind": "meeting_held",
+                "kind": "meeting_booked" if upcoming else "meeting_held",
                 "occurred_on": fields.get("held_on"),
                 "account_name": fields.get("account_name"),
                 "note": f"Meeting: {fields.get('title')}",

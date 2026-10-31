@@ -32,6 +32,8 @@ def draft(**over: object) -> MissionDraft:
         assumptions=["Targets companies already on a helpdesk"],
         open_questions=[],
         topic_keywords=[],
+        industries=[],
+        places=[],
     )
     base.update(over)
     return MissionDraft(**base)  # type: ignore[arg-type]
@@ -154,6 +156,65 @@ def test_if_every_topic_only_describes_the_buyer_the_signal_is_dropped() -> None
     )
     assert plan.topic_keywords == [] and plan.signal_types == ["active_hiring"]
     assert any("topic_engagement" in a and "keywords" in a for a in plan.assumptions)
+
+
+def test_industries_and_places_become_filters() -> None:
+    plan = base_plan(industries=["Primary and Secondary Education"], places=["Powai", "Mumbai"])
+    req = compile_search_request(plan)
+    assert isinstance(req.filters, ConditionGroup)
+    flat = {c.field: c for c in req.filters.conditions if isinstance(c, Condition)}
+    assert flat["basic_info.industries"].value == ["Primary and Secondary Education"]
+    where = next(
+        c for c in req.filters.conditions if isinstance(c, ConditionGroup) and c.op == "or"
+    )
+    assert [c.value for c in where.conditions if isinstance(c, Condition)] == ["Powai", "Mumbai"]  # type: ignore[union-attr]
+
+
+def test_a_single_place_is_one_condition_not_a_group() -> None:
+    req = compile_search_request(base_plan(places=["Mumbai"]))
+    assert isinstance(req.filters, ConditionGroup)
+    place = next(
+        c for c in req.filters.conditions if getattr(c, "field", "") == "locations.headquarters"
+    )
+    assert place.type == "(.)" and place.value == "Mumbai"  # type: ignore[union-attr]
+
+
+def test_industries_and_places_are_cleaned_and_capped() -> None:
+    plan = base_plan(
+        industries=[
+            " Software  Development ",
+            "software development",
+            "",
+            "x" * 200,
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+        ],
+        places=["Powai ", "powai", "", "Mumbai", "Thane", "Pune", "Delhi", "Goa"],
+    )
+    assert plan.industries[0] == "Software Development" and len(plan.industries) == 5
+    assert plan.places[:2] == ["Powai", "Mumbai"] and len(plan.places) == 4
+    assert all(0 < len(x) <= 60 for x in [*plan.industries, *plan.places])
+
+
+def test_relaxation_drops_the_loosest_text_filters_before_the_country() -> None:
+    plan = base_plan(industries=["Primary and Secondary Education"], places=["Mumbai"])
+    steps = relaxation_steps(plan)
+    assert [s.description for s in steps] == [
+        "drop company-size filter",
+        "drop place filter",
+        "drop industry filter",
+        "drop country filter",
+    ]
+    assert steps[1].plan.places == [] and steps[1].plan.industries == plan.industries
+    assert steps[2].plan.industries == [] and steps[2].plan.countries == plan.countries
+
+
+def test_the_model_must_answer_for_industries_and_places_every_time() -> None:
+    required = MissionDraft.model_json_schema()["required"]
+    assert "industries" in required and "places" in required
 
 
 def test_the_model_must_answer_for_topic_keywords_every_time() -> None:

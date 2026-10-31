@@ -26,7 +26,7 @@ export function SendControls({ o, id }: { o: Outreach; id: string }) {
   const sent = Boolean(o.test_sends?.length || o.manual_sends?.length)
   if (o.status === 'rejected') return null
   return (
-    <div className="send">
+    <div className="send-controls">
       {s && <p className="muted">Step {s.step} by {s.channel} to {s.recipient}, {new Date(s.send_at).toLocaleString()} ({s.timezone}): <b>{s.state}</b>{s.error ? `. ${s.error}` : ''}</p>}
       {pending
         ? <button className="ghost mini" onClick={() => void act(() => post(`/missions/${id}/outreach/${o.id}/cancel-schedule`))}>Cancel schedule</button>

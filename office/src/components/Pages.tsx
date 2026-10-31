@@ -5,8 +5,8 @@ import { useState, type FormEvent } from 'react'
 import { post } from '../api'
 import { STAGE_ORDER, money, signalLabel } from '../logic'
 import type { MissionView, Outreach } from '../types'
-import { Lifecycle, MeetingReview, QualifiedAccounts, Replies, SendControls } from './Loop'
-import { Card, Empty, Source, Stat, Tag } from './ui'
+import { Lifecycle, QualifiedAccounts, Replies, SendControls } from './Loop'
+import { Card, Empty, Stat, Tag } from './ui'
 
 function Field({ label, value, onChange, type = 'text', options }: { label: string; value: string; onChange: (v: string) => void; type?: string; options?: string[] }) {
   return (
@@ -136,29 +136,6 @@ export function OutreachPage({ v }: { v: MissionView }) {
       </Card>
       <Replies v={v} />
       {[...v.outreach].reverse().map(o => <OutreachCard key={o.id} o={o} id={id} reached={v.learning.lifecycle[o.id]?.reached ?? []} />)}
-    </div>
-  )
-}
-
-export function MeetingsPage({ v, wispr }: { v: MissionView; wispr: string }) {
-  const form = useForm({ title: '', held_on: '', account_name: '', notes: '' }, f => post(`/missions/${v.mission.id}/meetings`, { fields: f }))
-  return (
-    <div className="grid">
-      <Card wide title="Meetings" hint={wispr === 'connected' ? 'Wispr Flow is connected' : 'Wispr Flow is not connected, so meetings are entered by hand'}>
-        {v.meetings.length ? <table><thead><tr><th>Meeting</th><th>Date</th><th>Account</th><th>What came of it</th><th>Source</th></tr></thead><tbody>{v.meetings.map(m => <tr key={m.id}><td><b>{m.title}</b>{m.link && <small><Source url={m.link} label={m.source === 'wispr' ? 'Meeting notes' : 'Join link'} /></small>}</td><td>{m.held_on}</td><td>{m.account_name ?? 'Unknown'}</td><td>{m.summary || m.notes ? <small>{(m.summary || m.notes || '').slice(0, 160)}</small> : null}{m.source === 'wispr' && (m.progress ? <Tag>{m.progress}</Tag> : <div className="row start">{['progressed', 'stalled', 'disqualified'].map(p => <button key={p} className="ghost mini" onClick={() => void post(`/missions/${v.mission.id}/meetings/${m.id}/progress`, { progress: p })}>{p}</button>)}</div>)}</td><td><Tag>{m.source.replaceAll('_', ' ')}</Tag>{m.strategy_version && <small>Strategy v{m.strategy_version}</small>}</td></tr>)}</tbody></table> : <Empty>No meetings recorded.</Empty>}
-        <div className="row start"><button className="ghost" disabled={wispr !== 'connected'} onClick={() => void post(`/missions/${v.mission.id}/import-meetings`)}>Import from Wispr Flow</button><button className="ghost" onClick={() => void post(`/missions/${v.mission.id}/test-meeting`)}>Book test meeting</button></div>
-      </Card>
-      <MeetingReview v={v} />
-      <Card wide title="Record a meeting">
-        <form className="form-grid" onSubmit={form.onSubmit}>
-          <Field label="Title" value={form.f.title} onChange={form.set('title')} />
-          <Field label="Date" type="date" value={form.f.held_on} onChange={form.set('held_on')} />
-          <Field label="Account" value={form.f.account_name} onChange={form.set('account_name')} />
-          <label className="span">Notes, in their words<textarea rows={3} value={form.f.notes} onChange={e => form.set('notes')(e.target.value)} /></label>
-          {form.error && <p className="alert bad span">{form.error}</p>}
-          <button className="allow" disabled={!form.f.title || !form.f.held_on}>Save meeting</button>
-        </form>
-      </Card>
     </div>
   )
 }

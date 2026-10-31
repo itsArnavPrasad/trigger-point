@@ -154,10 +154,14 @@ def _exclusions(items: list[str]) -> tuple[list[str], list[str]]:
 MAX_KEYWORDS = 6
 
 
-def _keywords(items: list[str], limit: int = MAX_KEYWORDS) -> list[str]:
+MAX_INDUSTRIES = 5
+MAX_PLACES = 4
+
+
+def _keywords(items: list[str], limit: int = MAX_KEYWORDS, width: int = 40) -> list[str]:
     out: list[str] = []
     for item in items:
-        kw = " ".join(item.split())[:40]
+        kw = " ".join(item.split())[:width]
         if kw and kw.casefold() not in {k.casefold() for k in out}:
             out.append(kw)
     return out[:limit]
@@ -229,6 +233,8 @@ def compile_plan(draft: MissionDraft, seller_domain: str, credit_budget: float) 
         excluded_names=names,
         tech_keywords=_keywords(draft.tech_keywords),
         topic_keywords=topic_keywords,
+        industries=_keywords(draft.industries, limit=MAX_INDUSTRIES, width=60),
+        places=_keywords(draft.places, limit=MAX_PLACES, width=60),
         max_accounts=max_accounts,
         credit_budget=credit_budget,
         freshness_days={s: DEFAULT_FRESHNESS_DAYS[s] for s in signals},
@@ -288,6 +294,17 @@ def compile_search_request(plan: GTMPlan) -> CompanySearchRequest:
                 field="basic_info.employee_count_range", type="in", value=list(plan.employee_ranges)
             )
         )
+    if plan.industries:
+        conditions.append(
+            Condition(field="basic_info.industries", type="in", value=list(plan.industries))
+        )
+    if plan.places:
+        where: list[Condition | ConditionGroup] = [
+            Condition(field="locations.headquarters", type="(.)", value=p) for p in plan.places
+        ]
+        conditions.append(
+            where[0] if len(where) == 1 else ConditionGroup(op="or", conditions=where)
+        )
     filters: Condition | ConditionGroup | None = None
     if len(conditions) == 1:
         filters = conditions[0]
@@ -317,12 +334,18 @@ class RelaxationStep:
 
 
 def relaxation_steps(plan: GTMPlan) -> list[RelaxationStep]:
-    """Cumulative, one constraint at a time: size first, then geography."""
+    """Cumulative, one constraint at a time: size, then the loosest text filters, then country."""
     steps: list[RelaxationStep] = []
     current = plan
     if current.employee_ranges:
         current = current.model_copy(update={"employee_ranges": []})
         steps.append(RelaxationStep("drop company-size filter", current))
+    if current.places:
+        current = current.model_copy(update={"places": []})
+        steps.append(RelaxationStep("drop place filter", current))
+    if current.industries:
+        current = current.model_copy(update={"industries": []})
+        steps.append(RelaxationStep("drop industry filter", current))
     if current.countries:
         current = current.model_copy(update={"countries": []})
         steps.append(RelaxationStep("drop country filter", current))

@@ -28,7 +28,7 @@ export interface MissionView {
   strategy: { version: number; status: string; author: string; changes: string[]; mode: string; rolled_back_to: number | null; body: Record<string, any> }[]
   targets: { id: string; name: string; audience: string; notes: string; source: string; account_id?: number; signal_types?: string[]; why_now?: string[] }[]
   outreach: Outreach[]
-  meetings: { id: string; title: string; held_on: string; account_name?: string | null; notes?: string; summary?: string; source: string; link?: string | null; needs_review?: boolean; match_basis?: string; progress?: string | null; strategy_version?: number | null; icp_version?: number | null }[]
+  meetings: { id: string; title: string; held_on: string; time?: string; account_name?: string | null; attendee?: string; attendee_role?: string; audience?: string; status?: string; notes?: string; prep?: string; summary?: string; learnings?: string[]; source: string; link?: string | null; needs_review?: boolean; match_basis?: string; progress?: string | null; strategy_version?: number | null; icp_version?: number | null }[]
   pipeline: { accounts: { account_id: number | null; account_name: string | null; stage: string; last_activity: string; next_action: string | null; value: number | null; currency: string | null; mode: string }[]; counts: Record<string, number>; criteria: Record<string, string>; open_pipeline: Record<string, number>; won_revenue: Record<string, number> }
   outcomes: { id: string; kind: string; account_name: string | null; occurred_on: string; mode: string; note: string | null }[]
   learning: Learning
