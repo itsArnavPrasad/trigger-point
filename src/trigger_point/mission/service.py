@@ -12,7 +12,12 @@ from pydantic import BaseModel, Field
 
 from trigger_point.context.service import ContextService
 from trigger_point.llm.base import LlmError, LlmRequest, StructuredLlm
-from trigger_point.mission.compiler import compile_plan, compile_search_request, relaxation_steps
+from trigger_point.mission.compiler import (
+    compile_plan,
+    compile_search_request,
+    favour_signals,
+    relaxation_steps,
+)
 from trigger_point.mission.models import GTMPlan, Mission, MissionDraft
 from trigger_point.mission.prompt import MISSION_SYSTEM_PROMPT, build_mission_message
 from trigger_point.mission.selection import RejectedCompany, select_accounts
@@ -67,7 +72,13 @@ class MissionService:
         self._contexts, self._llm, self._store = contexts, llm, store
         self._budget, self._clock = credit_budget, clock
 
-    def compile(self, context_id: str, initiated_by: str = "ui") -> Mission:
+    def compile(
+        self,
+        context_id: str,
+        initiated_by: str = "ui",
+        lessons: str = "",
+        favoured_signals: list[str] | None = None,
+    ) -> Mission:
         ctx = self._contexts.get(context_id)
         if ctx.status != "approved":
             raise ContextNotApproved(f"context {context_id} v{ctx.version} is {ctx.status}")
@@ -75,13 +86,14 @@ class MissionService:
             task="mission_compile",
             replay_key=ctx.domain,
             system=MISSION_SYSTEM_PROMPT,
-            user=build_mission_message(ctx),
+            user=build_mission_message(ctx) + lessons,
             schema=MissionDraft,
             max_tokens=8000,
         )
         try:
             resp = self._llm.complete(req)
             plan = compile_plan(resp.output, seller_domain=ctx.domain, credit_budget=self._budget)
+            plan = favour_signals(plan, favoured_signals or [])
             search = compile_search_request(plan)
         except (LlmError, ValueError) as exc:
             raise MissionCompileFailed(str(exc)) from exc

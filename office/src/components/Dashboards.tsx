@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { post } from '../api'
-import { REJECTION, SCORE_HELP, SCORE_LABEL, SCORE_PARTS, elapsed, initials, rankNote, scoreLine, statusLabel } from '../logic'
+import { REJECTION, SCORE_HELP, SCORE_LABEL, SCORE_PARTS, elapsed, initials, rankNote, scoreLine, signalLabel, statusLabel } from '../logic'
 import type { Account, Agent, Claim, Harness, Health, MissionView } from '../types'
 import PersonActions from './Contact'
 import Icon from './Icon'
@@ -211,7 +211,7 @@ export function Signals({ v }: { v: MissionView }) {
         <table>
           <thead><tr><th>Account</th><th>Signal</th><th>Type</th><th>Date</th><th>Age</th><th>Strength</th><th>Status</th></tr></thead>
           <tbody>{rows.map(s => (
-            <tr key={s.id}><td><b>{s.account}</b></td><td>{s.description}</td><td>{s.type === 'support_team_growth' ? "Hiring into buyer's team" : s.type.replaceAll('_', ' ')}</td><td>{s.event_on ?? (s.as_of ? `as of ${s.as_of}` : 'undated')}</td>
+            <tr key={s.id}><td><b>{s.account}</b></td><td>{s.description}</td><td>{signalLabel(s.type)}</td><td>{s.event_on ?? (s.as_of ? `as of ${s.as_of}` : 'undated')}</td>
               <td>{s.age_days === null ? '-' : `${s.age_days}d of ${s.window_days}d`}</td><td>{Math.round(s.strength * 100)}%</td>
               <td><Tag tone={s.status === 'active' ? 'good' : s.status === 'expired' ? 'warn' : undefined}>{s.status}</Tag></td></tr>
           ))}</tbody>
@@ -347,10 +347,11 @@ export function Overview({ v }: { v: MissionView }) {
 
 const HEALTH_TONE: Record<string, string> = { test_only: 'info', live: 'good', ready: 'good', connected: 'good', fixture: 'warn', untested: 'warn', no_key: 'warn', needs_auth: 'warn', failed: 'bad', missing: 'bad' }
 
-export function Integrations({ health, harness }: { health: Health[]; harness: Harness[] }) {
+export function Integrations({ health, harness, onConnect }: { health: Health[]; harness: Harness[]; onConnect?: () => void }) {
   return (
     <div className="grid">
       <Card wide title="Trigger Point connectors" hint="Used by missions today">
+        {onConnect && <div style={{ marginBottom: 12 }}><button className="btn tinted small" onClick={onConnect}>Connect tools</button></div>}
         <table>
           <thead><tr><th>Connector</th><th>Purpose</th><th>State</th><th>Access</th><th>Last success</th></tr></thead>
           <tbody>{health.map(h => <tr key={h.id}><td><b>{h.name}</b>{h.note && <small>{h.note}</small>}</td><td>{h.purpose}</td><td><Tag tone={HEALTH_TONE[h.state]}>{h.state.replaceAll('_', ' ')}</Tag></td><td>{h.access}</td><td>{h.last_success?.slice(0, 16).replace('T', ' ') ?? '-'}</td></tr>)}</tbody>

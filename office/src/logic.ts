@@ -1,6 +1,6 @@
 /** The UI's rules, kept pure so they can be tested. Nothing here invents state. */
 
-import type { Account, Agent, Mission, MissionView, Permission, Score } from './types'
+import type { Account, Agent, Harness, Mission, MissionView, Permission, Score } from './types'
 
 export const FLOW = ['RECEIVED', 'PROFILE_REVIEW', 'ICP_READY', 'ACCOUNTS_FOUND', 'SIGNALS_RESEARCHED', 'PEOPLE_MAPPED', 'EVIDENCE_VERIFIED', 'CAMPAIGN_DRAFTED', 'USER_APPROVAL', 'COMPLETE']
 const TERMINAL = ['COMPLETE', 'FAILED', 'CANCELLED']
@@ -137,6 +137,30 @@ export function rankNote(prev: Pick<Account, 'name' | 'score'> | undefined, cur:
   return `${worst.d >= 25 ? 'Well behind' : worst.d >= 8 ? 'Behind' : 'Slightly behind'} ${above} on ${SCORE_LABEL[worst.k].toLowerCase()}.`
 }
 
+/** The tools Trigger Point reaches through Claude Code. Gmail and Calendar are needed to reach people and book
+ *  meetings; Wispr Flow only saves typing transcripts, so it is optional. All three connect on one claude.ai page. */
+export type ConnState = 'connected' | 'needs_sign_in' | 'failed' | 'not_connected'
+export const CONNECTORS = [
+  { id: 'claude.ai Gmail', name: 'Gmail', why: 'Sends your approved emails and reads the replies.', required: true },
+  { id: 'claude.ai Google Calendar', name: 'Google Calendar', why: 'Finds the times you are free and books the meetings.', required: true },
+  { id: 'claude.ai Wispr Flow', name: 'Wispr Flow', why: 'Reads your meeting transcripts so Trigger Point can learn from them.', required: false },
+]
+
+export function connState(harness: Pick<Harness, 'id' | 'state'>[], id: string): ConnState {
+  const s = harness.find(h => h.id === id)?.state
+  return s === 'connected' ? 'connected' : s === 'needs_auth' ? 'needs_sign_in' : s === 'failed' ? 'failed' : 'not_connected'
+}
+
+export function connectionRows(harness: Pick<Harness, 'id' | 'state'>[], optionalSkipped: boolean) {
+  return CONNECTORS.map(c => {
+    const state = connState(harness, c.id)
+    return { ...c, state, skipped: !c.required && optionalSkipped && state !== 'connected' }
+  })
+}
+
+/** Nothing left to ask: every required tool is connected and each optional one is connected or skipped. */
+export const connectionsReady = (rows: ReturnType<typeof connectionRows>) => rows.every(r => r.state === 'connected' || r.skipped)
+
 /** What the office can vouch for. A stopped stream means Connection lost, never "still running". */
 export function agentLabel(a: Pick<Agent, 'status'>, connected: boolean): string {
   if (!connected) return a.status === 'running' ? 'Connection lost' : statusLabel(a.status)
@@ -200,4 +224,26 @@ export function elapsed(from?: string | null, to?: string | null, now = Date.now
 export function tokenFromHash(hash: string): string | null {
   const m = /[#&]token=([0-9a-f]{32,128})/.exec(hash)
   return m ? m[1] : null
+}
+
+export const RESULT_TEXT: Record<string, string> = {
+  insufficient: 'Not enough results yet', improved: 'Improved', worse: 'Worse', no_change: 'No clear change',
+}
+
+/** A rate means nothing without its base, so no sends shows as unknown rather than 0%. */
+export function percent(rate: number, n: number): string {
+  return n ? `${Math.round(rate * 100)}%` : 'Unknown'
+}
+
+const SIGNAL_LABELS: Record<string, string> = {
+  topic_engagement: 'Staff post about the topic',
+  recent_funding: 'Recent funding',
+  active_hiring: 'Hiring now',
+  support_team_growth: 'Hiring into the target team',
+  headcount_growth: 'Headcount growth',
+}
+
+/** A signal type in the words a person would use. An unknown type still shows, just less polished. */
+export function signalLabel(type: string): string {
+  return SIGNAL_LABELS[type] ?? type.replaceAll('_', ' ')
 }

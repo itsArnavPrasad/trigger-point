@@ -10,6 +10,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
 from trigger_point.context.service import IntakeBrief
+from trigger_point.workflow.feedback import FeedbackService
 from trigger_point.workflow.service import WorkflowService
 
 WORKFLOW_APPROVAL_TOOLS = (
@@ -61,6 +62,13 @@ def register_workflow_tools(server: MCPServer, wf: WorkflowService) -> None:  # 
         """Replace one profile field with the user's words, during review. New text is recorded
         as a user statement. Creates a new version, which needs approval again."""
         return wf.edit_business_profile(mission_id, field, values)
+
+    @server.tool(annotations=WRITES)
+    def target_from_account(mission_id: str, account_id: int, audience: str) -> dict[str, Any]:
+        """Make a qualified, researched account an outreach target. Its why-now comes from its own
+        research signals, so the learning loop can learn which signals work. A rejected account is
+        refused."""
+        return wf.target_from_account(mission_id, account_id, audience)
 
     @server.tool(annotations=READ_ONLY)
     def prepare_test_send(mission_id: str, outreach_id: str) -> dict[str, Any]:
@@ -178,3 +186,59 @@ def register_workflow_tools(server: MCPServer, wf: WorkflowService) -> None:  # 
     def get_task_details(task_id: str) -> dict[str, Any]:
         """One task: role, status, attempts, output, error, its events and evidence ids."""
         return wf.task_details(task_id)
+
+
+def register_feedback_tools(server: MCPServer, fb: FeedbackService) -> None:
+    """Reading what came back and recording it. No tool here approves or decides anything."""
+
+    @server.tool(annotations=READ_ONLY)
+    def list_open_threads(mission_id: str) -> dict[str, Any]:
+        """Gmail threads to read. Call get_thread on each with PLAIN_TEXT, then sync_replies."""
+        return fb.open_threads(mission_id)
+
+    @server.tool(annotations=WRITES)
+    def sync_replies(mission_id: str) -> dict[str, Any]:
+        """Turn the threads you just read into replies. Trigger Point takes sender and text from the
+        captured Gmail response, so there is nothing to type in."""
+        return fb.sync_replies(mission_id)
+
+    @server.tool(annotations=WRITES)
+    def import_meeting(
+        mission_id: str, source_id: str, suggested_account: str | None = None
+    ) -> dict[str, Any]:
+        """Import a Wispr meeting you read with get_meeting, by its id. A suggested account is
+        only a suggestion: unless a calendar id or a target's name proves it, a person decides.
+        If it answers `incomplete`, call get_meeting again with view_transcript.start_char set to
+        `continue_from`, then import again."""
+        return fb.import_meeting(mission_id, source_id, suggested_account)
+
+    @server.tool(annotations=WRITES)
+    def add_meeting_insights(
+        mission_id: str, meeting_id: str, insights: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Each insight: kind (pain, desired_outcome, objection, alternative, budget, urgency,
+        buying_process, success_criteria, commitment, next_step), text, basis (statement or
+        interpretation), quote, speaker, ambiguous. A statement needs a verbatim quote from the
+        transcript, or it is refused. An interpretation goes to a person for review."""
+        return fb.add_insights(mission_id, meeting_id, insights)
+
+    @server.tool(annotations=READ_ONLY)
+    def get_learning_inputs(mission_id: str) -> dict[str, Any]:
+        """Reviewed insights and real outcomes, for finding what repeats across sources."""
+        return fb.learning_inputs(mission_id)
+
+    @server.tool(annotations=WRITES)
+    def propose_lesson(
+        mission_id: str,
+        text: str,
+        target: Literal["icp", "messaging", "qualification", "channel"],
+        evidence_ids: list[str],
+    ) -> dict[str, Any]:
+        """Suggest a candidate lesson, citing insight or outcome ids. A person decides in the
+        Office. One source can be stored but never approved."""
+        return fb.propose_lesson(mission_id, text, target, evidence_ids)
+
+    @server.tool(annotations=WRITES)
+    def write_follow_up(mission_id: str, outreach_id: str) -> dict[str, Any]:
+        """The next message in a sequence, verified like any other. Stops if they answered."""
+        return fb.write_follow_up(mission_id, outreach_id)

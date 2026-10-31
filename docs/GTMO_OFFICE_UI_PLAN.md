@@ -49,7 +49,9 @@ Every agent also has an **Activity** tab: current work, tool calls, Claude Code 
 5. **Research:** each credit-spending step is its own approval. Agents work; dashboards fill.
 6. **Audit and score,** then **draft** and **gate.**
 7. **Draft approval:** you see the exact text. Approval sends nothing.
-8. **Outreach:** write messages per audience, then send to the test inbox and book a test meeting. Each send is held for a click.
+8. **Outreach:** write messages per audience, schedule them, send to the test inbox and book a test meeting. Each send is held for a click.
+9. **Replies and meetings:** check replies, import from Wispr Flow, and review what needs a person.
+10. **Learning:** the nine steps with live counts, what the data supports, decisions, experiments, lessons, and why each version changed.
 
 ## How the UI drives the harness
 ```text
@@ -67,5 +69,5 @@ Browser --token--> FastAPI /api/office --> Mission Runner --> claude --agent mis
 - Only one account gets a case file and draft in a mission.
 - The Quality Gatekeeper lists checks passed, without per-check evidence.
 - "Inputs" on the Activity tab are not shown.
-- Meetings, pipeline outcomes and costs are entered by hand until connectors exist.
+- Pipeline outcomes and costs are entered by hand until connectors exist.
 - Market research comes from the seller's profile and the model, not outside sources.

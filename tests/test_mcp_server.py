@@ -1,5 +1,6 @@
 """The MCP server exposes the same services as the UI, attributed to Claude Code."""
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -59,4 +60,4 @@ def test_every_prompt_has_a_version(tmp_path: Path) -> None:
 
     versions = prompt_versions()
     assert set(versions) == {"context", "mission", "draft", "strategy", "outreach"}
-    assert all(v.endswith("-v1") for v in versions.values())
+    assert all(re.fullmatch(r".+-v\d+", v) for v in versions.values())

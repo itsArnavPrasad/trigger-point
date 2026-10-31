@@ -9,16 +9,20 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from trigger_point.models.context import RunMode
 
-SignalType = Literal["support_team_growth", "headcount_growth", "active_hiring", "recent_funding"]
+SignalType = Literal[
+    "support_team_growth", "headcount_growth", "active_hiring", "recent_funding", "topic_engagement"
+]
 SIGNAL_TYPES: tuple[str, ...] = (
     "support_team_growth",
     "headcount_growth",
     "active_hiring",
     "recent_funding",
+    "topic_engagement",
 )
 # Starting freshness policy (docs/EVIDENCE_AND_VERIFICATION.md); configurable assumptions.
 DEFAULT_FRESHNESS_DAYS: dict[str, int] = {
     "recent_funding": 90,
+    "topic_engagement": 120,  # a dated public post by someone at the account
     # Metric signals are aged from the provider's as-of date; the policy caps hooks at 120 days.
     "active_hiring": 120,
     "headcount_growth": 120,
@@ -46,6 +50,9 @@ class MissionDraft(BaseModel):
     assumptions: list[str]
     open_questions: list[str]
     tech_keywords: list[str] = Field(default_factory=list)
+    topic_keywords: list[str]  # required on purpose: a model may skip an optional field
+    industries: list[str]  # required for the same reason; empty is a valid answer
+    places: list[str]
     dimensions: dict[str, str] = Field(default_factory=dict)
 
 
@@ -68,6 +75,9 @@ class GTMPlan(BaseModel):
     excluded_domains: list[str] = Field(default_factory=list)
     excluded_names: list[str] = Field(default_factory=list)
     tech_keywords: list[str] = Field(default_factory=list)
+    topic_keywords: list[str] = Field(default_factory=list)  # what staff would post about if open
+    industries: list[str] = Field(default_factory=list)  # Crustdata industry names
+    places: list[str] = Field(default_factory=list)  # words in a headquarters address
     max_accounts: int = Field(ge=1, le=25)
     credit_budget: float = Field(gt=0)
     freshness_days: dict[str, int] = Field(default_factory=dict)

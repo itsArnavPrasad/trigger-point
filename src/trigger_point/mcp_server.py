@@ -23,7 +23,11 @@ from trigger_point.drafts.service import DraftNotFound
 from trigger_point.models.context import CLAIM_LIST_FIELDS, BusinessContext
 from trigger_point.office.views import integration_health
 from trigger_point.research.service import ResearchNotFound
-from trigger_point.workflow.mcp_tools import WORKFLOW_APPROVAL_TOOLS, register_workflow_tools
+from trigger_point.workflow.mcp_tools import (
+    WORKFLOW_APPROVAL_TOOLS,
+    register_feedback_tools,
+    register_workflow_tools,
+)
 
 APPROVAL_TOOLS = WORKFLOW_APPROVAL_TOOLS
 READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=False)
@@ -146,6 +150,7 @@ def build_server(services: Services) -> MCPServer:
             return {"ok": False, "error": "not_found"}
 
     register_workflow_tools(server, services.workflow)
+    register_feedback_tools(server, services.feedback)
     return server
 
 

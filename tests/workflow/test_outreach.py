@@ -57,8 +57,8 @@ def test_a_message_that_is_too_long_is_rejected() -> None:
     assert "too_long" in codes(wire(body="word " * 400))
 
 
-def ready(rig: Rig) -> str:
-    mid = str(rig.call("create_mission", website_url=URL, goal=GOAL)["mission_id"])
+def ready(rig: Rig, goal: str = GOAL) -> str:
+    mid = str(rig.call("create_mission", website_url=URL, goal=goal)["mission_id"])
     a = rig.call("request_user_approval", mission_id=mid, gate="business_profile")
     rig.call(
         "approve_business_profile",

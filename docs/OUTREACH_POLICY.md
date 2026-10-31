@@ -1,6 +1,6 @@
 # Outreach and External Action Policy
 
-> Drafts only for real recipients. The one send path is a test: Gmail and Calendar calls may reach only `TRIGGER_POINT_TEST_RECIPIENTS`, marked `[Trigger Point test]`, and `scripts/office_hook.py` denies anything else. An empty list denies everything. A message is rechecked against the current rules before it is prepared or approved. Approvals happen in Trigger Point Office, and the exact content is one click away on the card.
+> Drafts only for real recipients. The one send path is a test: Gmail and Calendar calls may reach only `TRIGGER_POINT_TEST_RECIPIENTS`, marked `[Trigger Point test]`, and `scripts/office_hook.py` denies anything else. An empty list denies everything. A message is rechecked against the current rules before it is prepared or approved. Opt-outs and bounces suppress a target by rule. A sequence stops at any answer and at three messages. A scheduled send is still held for a click, and one held too long is reported missed, never sent late. Approvals happen in Trigger Point Office, and the exact content is one click away on the card.
 
 ## Campaign output
 Per account, generate:

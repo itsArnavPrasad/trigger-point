@@ -7,6 +7,7 @@ import { post } from '../api'
 import { meetingStatus, type MeetingStatus } from '../logic'
 import type { MissionView } from '../types'
 import Icon from './Icon'
+import { MeetingReview, WisprSection } from './Loop'
 import { MeetButton, Tag } from './ui'
 
 type Meeting = MissionView['meetings'][number]
@@ -200,6 +201,9 @@ export default function MeetingsPage({ v, wispr, focus }: { v: MissionView; wisp
         </section>
         <section className="panel meet-detail">{selected ? <Brief v={v} m={selected} today={today} /> : <div className="empty-state"><p>Select a meeting</p></div>}</section>
       </div>
+
+      <WisprSection v={v} wispr={wispr} />
+      <MeetingReview v={v} />
 
       <section className="panel" style={{ marginTop: 16 }}>
         <header><h3>Record a meeting</h3></header>

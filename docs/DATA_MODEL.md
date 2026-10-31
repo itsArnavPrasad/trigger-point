@@ -118,6 +118,17 @@ In `src/trigger_point/workflow/`, tables `wf_missions`, `wf_tasks`, `wf_approval
 
 `gtm_records`: strategy versions, outcomes, meetings, manual costs, proposals. Pure logic in `workflow/gtm.py`.
 
+`gtm_records` also holds the feedback loop:
+- **raw_source:** a Gmail or Wispr response as returned. Never sent to the page.
+- **reply:** sender, text, kind (`reply`, `opted_out`, `bounced`), and a person's label.
+- **suppression:** a target that must not be contacted.
+- **touch:** a real send a person logged, or a labelled demo send. Test sends are read from the outreach record.
+- **insight:** kind, text, basis, quote, speaker, status, and the original text if corrected.
+- **lesson:** text, target, evidence ids, wording history, status, mode, seller domain, strategy version.
+- **experiment:** change, version, metric, decision rule, status.
+
+Outcomes carry `outreach_id`, `audience` and `strategy_version`. Outreach records carry `schedule`, `step`, `follow_up_of`, `variant` and `lessons_used`.
+
 ## Planned for the GTM OS (not built)
 - **Claim classes:** fact, user statement, assumption, hypothesis, recommendation.
 - **Evidence additions:** `source_title`, `published_at`, `relevance`. Status `VERIFIED | NEEDS_REVIEW | CONTRADICTED | STALE`.
@@ -125,9 +136,6 @@ In `src/trigger_point/workflow/`, tables `wf_missions`, `wf_tasks`, `wf_approval
 - **StrategyVersion; IcpVersion additions:** segments, weights, evidence per criterion.
 - **CommitteeRole, PersonaProfile, Stakeholder:** known person vs inferred role.
 - **GtmPlan, Channel, Sequence, Experiment.**
-- **Draft lifecycle:** drafted, approved, scheduled, sent, delivered, replied, booked.
-- **Meeting, MeetingInsight:** linked to source and to campaign version.
-- **Lesson memory** and retrieval into new missions.
 - **Opportunity, PipelineStage, Activity.**
 - **CostEntry:** amount, currency, source, date, actual or estimated, recurring.
 - **IntegrationHealth history:** today's view is computed, with no sync record.

@@ -666,6 +666,25 @@ a.chip-contact.link:hover { background: var(--fill-2); text-decoration: none; }
 .chip-ic:hover { background: var(--fill-2); color: var(--text); text-decoration: none; }
 .chip-ic.copy.copied { color: var(--good); } .chip-ic.copy.failed { color: var(--bad); }
 
+
+/* ---------- Connect your tools (first open) ---------- */
+.connect-card { width: min(540px, 92vw); padding: 26px 26px 22px; border-radius: 24px; background: var(--surface); box-shadow: var(--sheet-shadow); }
+.connect-card h2 { font-size: 26px; font-weight: 700; letter-spacing: -.03em; }
+.connect-card header p { margin-top: 6px; color: var(--text-2); font-size: 15px; line-height: 1.45; }
+.connect-list { margin: 20px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.connect-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 16px; background: var(--fill); }
+.connect-row.done { background: color-mix(in srgb, var(--good) 8%, var(--fill)); }
+.connect-ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: var(--surface); color: var(--accent); box-shadow: inset 0 0 0 1px var(--line); }
+.connect-name { display: flex; align-items: center; gap: 8px; }
+.connect-name b { font-size: 15px; font-weight: 600; }
+.connect-text small { margin-top: 2px; font-size: 13px; line-height: 1.35; }
+.connect-text .connect-alt { color: var(--muted); }
+.connect-act { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.connect-act .btn { text-decoration: none; }
+.connect-hint { margin-top: 14px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.connect-card footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+@media (max-width: 520px) { .connect-row { grid-template-columns: 40px minmax(0, 1fr); } .connect-act { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: flex-end; } }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1280px) {
 }
@@ -703,3 +722,13 @@ a.chip-contact.link:hover { background: var(--fill-2); text-decoration: none; }
 @media (prefers-reduced-transparency: reduce) {
   .sidebar, .toolbar, .sheet-head, .float-chat, .menu { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
+
+/* ---------- Learning loop (added in the merge with the loop branch) ---------- */
+.loop { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 6px; margin: 0 0 10px; padding: 0; list-style: none; }
+.loop li { display: grid; grid-template-columns: auto 1fr; gap: 0 6px; padding: 7px 9px; border-radius: 10px; background: var(--fill); border: 1px solid var(--line); color: var(--muted); }
+.loop li span { font-size: 11px; } .loop li b { font-weight: 600; font-size: 12px; } .loop li em { grid-column: 2; font-style: normal; font-size: 18px; color: var(--muted); }
+.loop li.on { border-color: var(--accent); color: var(--text); } .loop li.on em { color: var(--accent); }
+.flow-line { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
+.flow-line li:not(:last-child)::after { content: "\2192"; margin-left: 4px; } .flow-line li:last-child { color: var(--text); font-weight: 600; }
+.send-controls { margin-top: 10px; display: grid; gap: 6px; } .send-controls input { min-width: 0; max-width: 220px; }
+.inline { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; } .inline select { max-width: 220px; }

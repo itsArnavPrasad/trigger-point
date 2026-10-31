@@ -1,5 +1,10 @@
 """Connector state comes from what Claude Code reports, never from what Trigger Point hopes."""
 
+import time
+
+import pytest
+
+from trigger_point.office import connectors
 from trigger_point.office.connectors import parse_mcp_list
 
 SAMPLE = """Checking MCP server health…
@@ -18,3 +23,17 @@ def test_parses_each_state() -> None:
     assert got["plugin:sales:hubspot"] == "failed"
     assert got["plugin:sales:slack"] == "needs_auth"
     assert got["plugin:sales:gmail"] == "not_configured"
+
+
+def test_a_status_is_unchecked_until_a_check_has_finished(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        connectors.shutil, "which", lambda _name: None
+    )  # no claude here: ends at once
+    status = connectors.ConnectorStatus()
+    assert status.checked is False and status.checking is False
+    status.refresh_now()
+    for _ in range(200):
+        if status.checked and not status.checking:
+            break
+        time.sleep(0.02)
+    assert status.checked and not status.checking

@@ -6,7 +6,7 @@ deterministic checks. Model quality needs labelled live output and is listed in 
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from tests.research.factories import company, plan
@@ -15,7 +15,8 @@ from trigger_point.mission.selection import select_accounts
 from trigger_point.models.context import BusinessContext, ContextClaim
 from trigger_point.models.evidence import Evidence
 from trigger_point.office.views import stakeholder_role
-from trigger_point.workflow.gtm import MIN_SAMPLE, Outcome, finance_metrics, propose_changes
+from trigger_point.workflow.gtm import MIN_SAMPLE, Outcome, finance_metrics
+from trigger_point.workflow.loop import MATURITY_DAYS, Touch, compare, measure, quote_found
 from trigger_point.workflow.outreach import OutreachWire, verify_outreach
 from trigger_point.workflow.verification import audit_evidence
 
@@ -74,6 +75,23 @@ def _dupes() -> int:
         [company(1), company(1), company(2, primary_domain="b.example")], plan(), "s.example", None
     )
     return len(kept)
+
+
+def _touches(n: int, mode: str = "live", days_ago: int = MATURITY_DAYS + 1) -> list[Touch]:
+    sent_on = TODAY - timedelta(days=days_ago)
+    return [
+        Touch(id=f"{a}{i}", audience=a, sent_on=sent_on, mode=mode)
+        for a in ("school", "parent")
+        for i in range(n)
+    ]
+
+
+def _report(touches: list[Touch], wins: int = 0) -> dict[str, Any]:
+    outcomes = [
+        _outcome(i, "meeting_booked").model_copy(update={"outreach_id": touches[i].id})
+        for i in range(wins)
+    ]
+    return compare(touches, outcomes, TODAY, ("live",))
 
 
 def _outcome(i: int, kind: str = "meeting_held", mode: str = "live") -> Outcome:
@@ -136,22 +154,42 @@ SUITES: dict[str, list[Case]] = {
         ("known-good", "proposing a pilot", lambda: _msg("Could we discuss a small pilot?")),
     ],
     "learning_recommendations": [
-        ("empty", "no outcomes", lambda: propose_changes([])["proposals"] == []),
+        ("empty", "no sends", lambda: _report([])["proposals"] == []),
+        ("edge", "small sample", lambda: _report(_touches(MIN_SAMPLE - 1))["proposals"] == []),
         (
-            "edge",
-            "small sample",
-            lambda: (
-                propose_changes([_outcome(i) for i in range(MIN_SAMPLE - 1)])["proposals"] == []
-            ),
+            "known-good",
+            "a better audience is proposed",
+            lambda: _report(_touches(MIN_SAMPLE), wins=3)["proposals"][0]["value"] == "school",
         ),
         (
             "contradictory",
             "fixture never teaches",
-            lambda: (
-                propose_changes([_outcome(i, mode="replay") for i in range(99)])["excluded_fixture"]
-                == 99
-            ),
+            lambda: _report(_touches(50, "replay"))["excluded"] == 100,
         ),
+        (
+            "edge",
+            "a recent send is pending, not a failure",
+            lambda: _report(_touches(3, days_ago=1))["pending"] == 6,
+        ),
+        ("stale", "a small result says wait", lambda: measure(0.9, 2, 0.1, 50)["action"] == "wait"),
+        (
+            "known-good",
+            "a worse result advises rollback",
+            lambda: measure(0.1, 9, 0.5, 9)["action"] == "roll_back",
+        ),
+    ],
+    "meeting_insights": [
+        (
+            "known-good",
+            "quote in the source",
+            lambda: quote_found("fees are high", "Fees  are\nhigh."),
+        ),
+        (
+            "contradictory",
+            "changed wording",
+            lambda: not quote_found("fees are low", "fees are high"),
+        ),
+        ("empty", "blank quote", lambda: not quote_found(" ", "fees are high")),
     ],
     "finance_calculations": [
         (

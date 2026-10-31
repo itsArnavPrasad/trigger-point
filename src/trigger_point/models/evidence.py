@@ -11,7 +11,12 @@ from pydantic import BaseModel, ConfigDict
 
 EntityType = Literal["account", "person", "seller"]
 SourceKind = Literal[
-    "provider_field", "job_posting", "provider_profile", "seller_website", "user_provided"
+    "provider_field",
+    "job_posting",
+    "social_post",
+    "provider_profile",
+    "seller_website",
+    "user_provided",
 ]
 
 

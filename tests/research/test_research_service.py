@@ -1,5 +1,5 @@
 import json
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from tests.research.factories import NOW, company, plan
-from trigger_point.mission.models import Mission
+from trigger_point.mission.models import GTMPlan, Mission
 from trigger_point.mission.service import DiscoveryRun
 from trigger_point.providers.crustdata.client import CreditBudget, CrustdataClient
 from trigger_point.research.service import ResearchFailed, ResearchService
@@ -47,6 +47,22 @@ def prof(pid: int, cid: int, title: str, linked: bool = False) -> dict[str, Any]
     }
 
 
+def post_json(
+    url: str, days_ago: int, text: str, title: str = "Senior Maths Teacher", author: int = 701
+) -> dict[str, Any]:
+    return {
+        "share_url": url,
+        "date_posted": (REF - timedelta(days=days_ago)).isoformat() + "T09:00:00Z",
+        "text": text,
+        "post_type": "original",
+        "actor": {
+            "crustdata_entity_id": author,
+            "title": title,
+            "company_name": "Sunrise International School",
+        },
+    }
+
+
 class Responder:
     def __init__(
         self,
@@ -55,8 +71,12 @@ class Responder:
         job_status: int = 200,
         contacts: dict[int, dict[str, Any]] | None = None,
         contact_status: int = 200,
+        posts: Any = None,
+        post_status: int = 200,
     ) -> None:
         self.contacts, self.contact_status = contacts or {}, contact_status
+        self.posts = posts if posts is not None else []
+        self.post_status = post_status
         self.jobs = (
             jobs
             if jobs is not None
@@ -133,6 +153,13 @@ class Responder:
             return httpx.Response(
                 200, json=out, headers={"x-credits-used": str(3 * len(self.contacts))}
             )
+        if r.url.path == "/social_post/search":
+            if self.post_status != 200:
+                err = {"type": "permission_error", "message": "no access", "metadata": []}
+                return httpx.Response(self.post_status, json={"error": err})
+            return httpx.Response(
+                200, json={"posts": self.posts}, headers={"x-credits-used": "0.5"}
+            )
         return httpx.Response(404, json={})
 
 
@@ -142,6 +169,7 @@ def setup(
     budget: float = 5.0,
     accounts: list[Any] | None = None,
     fetch_contacts: bool = False,
+    the_plan: GTMPlan | None = None,
 ) -> tuple[ResearchService, str, Store]:
     store = Store(tmp_path / "r.db")
     mission = Mission(
@@ -149,7 +177,7 @@ def setup(
         context_id="c1",
         context_version=2,
         user_goal="g",
-        plan=plan(),
+        plan=the_plan or plan(),
         search_request={},
         estimated_credits="0",
         status="approved",
@@ -369,3 +397,77 @@ def test_contact_lookup_stops_when_the_credit_budget_cannot_cover_it(tmp_path: P
     assert "/person/contact/enrich" not in [p for p, _ in responder.requests]
     assert any("contact lookup stopped: credit budget exhausted" in n for n in run.notes)
     assert run.outcome == "completed"
+
+
+# ── topic engagement: what the account's own staff post in public ───────────────────────────
+
+SCHOOL = company(
+    1001,
+    name="Sunrise International School",
+    primary_domain="sunrise.example",
+    headcount_growth_6m_pct=None,
+    hiring_openings=None,
+)
+
+
+def topic_plan() -> GTMPlan:
+    return plan(
+        signal_types=["topic_engagement"],
+        topic_keywords=["AI", "edtech"],
+        personas=[{"title": "Senior Maths Teacher", "function": "education", "why": "owns maths"}],
+    )
+
+
+def test_staff_posts_become_a_dated_signal_on_the_account(tmp_path: Path) -> None:
+    posts = [post_json("https://posts.example/1", 12, "We are trying AI tutors in Class 8.")]
+    responder = Responder(posts=posts, people=[])
+    svc, did, _ = setup(tmp_path, responder, accounts=[SCHOOL], the_plan=topic_plan())
+    run = svc.run(did)
+    [ar] = run.accounts
+    [sig] = [s for s in ar.signals if s.type == "topic_engagement"]
+    assert sig.status == "active" and sig.age_days == 12 and sig.event_on is not None
+    [ev] = [e for e in ar.evidence if e.source_kind == "social_post"]
+    assert ev.source_url == "https://posts.example/1" and ev.event_on == sig.event_on
+    sent = next(b for p, b in responder.requests if p == "/social_post/search")
+    assert {"field": "actor.company_name", "type": "[.]", "value": SCHOOL.name} in sent["filters"][
+        "conditions"
+    ]
+    assert "/social_post/search" in [c.endpoint for c in run.calls]
+    assert "no_fresh_why_now" not in ar.score.rejections
+
+
+def test_a_provider_hit_that_does_not_really_say_the_topic_is_not_a_signal(tmp_path: Path) -> None:
+    posts = [post_json("https://posts.example/2", 12, "He said the fees were fine.")]
+    svc, did, _ = setup(tmp_path, Responder(posts=posts), accounts=[SCHOOL], the_plan=topic_plan())
+    [ar] = svc.run(did).accounts
+    assert not [s for s in ar.signals if s.type == "topic_engagement"]
+
+
+def test_no_posts_found_is_a_visible_no_why_now_not_unknown(tmp_path: Path) -> None:
+    svc, did, _ = setup(tmp_path, Responder(posts=[]), accounts=[SCHOOL], the_plan=topic_plan())
+    [ar] = svc.run(did).accounts
+    assert ar.score.status == "rejected" and "no_fresh_why_now" in ar.score.rejections
+
+
+def test_post_search_denied_degrades_and_says_so(tmp_path: Path) -> None:
+    svc, did, _ = setup(
+        tmp_path, Responder(post_status=403), accounts=[SCHOOL], the_plan=topic_plan()
+    )
+    run = svc.run(did)
+    assert run.outcome == "completed"
+    assert any("post search unavailable" in n for n in run.notes)
+
+
+def test_a_budget_that_cannot_buy_one_post_skips_the_search(tmp_path: Path) -> None:
+    responder = Responder(posts=[post_json("https://posts.example/3", 5, "AI in class")])
+    svc, did, _ = setup(tmp_path, responder, budget=0.4, accounts=[SCHOOL], the_plan=topic_plan())
+    run = svc.run(did)
+    assert all(p != "/social_post/search" for p, _ in responder.requests)
+    assert any("post search skipped" in n for n in run.notes)
+
+
+def test_a_plan_without_topic_engagement_never_searches_posts(tmp_path: Path) -> None:
+    responder = Responder()
+    svc, did, _ = setup(tmp_path, responder)
+    svc.run(did)
+    assert all(p != "/social_post/search" for p, _ in responder.requests)

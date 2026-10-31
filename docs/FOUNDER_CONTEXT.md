@@ -14,7 +14,7 @@ We have a product and a clear idea of what to build. We do **not** know:
 - **Which parents:** tier-1 families (high income, strong careers, in Powai, Bandra or Bangalore), upper-middle families, or middle-income families.
 
 We also cannot fill our calendar:
-- On 30 Oct 2026 we walked into Hiranandani Foundation School, Hiranandani Public School and Podar International School (Powai). We could not reach the principal at any of them.
+- We walked into Hiranandani Foundation School, Hiranandani Public School and Podar International School (Powai). We could not reach the principal at any of them.
 - Calls with parents are not happening often enough either.
 
 ## The philosophy: we just press the trigger
@@ -33,4 +33,4 @@ So the product is built for us first. It must also be easy for any founder to po
 - **The truth rules still hold.** No invented facts about real schools or people. Sample and fixture data is always labelled, and learning uses only verified outcomes (see `CLAUDE.md`).
 
 ## Demo data
-A labelled fixture mission for this story (fictional researched schools, our real walk-ins and parent calls, sample bookings) was used to preview the UI on 2026-10-31. It is not live research.
+A labelled fixture mission for this story (fictional researched schools, our real walk-ins and parent calls, sample bookings) was used to preview the UI. It is not live research.

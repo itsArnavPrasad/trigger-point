@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from trigger_point.api.app import Services
+from trigger_point.office import scheduler
 from trigger_point.office.connectors import ConnectorStatus
 from trigger_point.office.runner import PROJECT_ROOT, MissionRunner
 from trigger_point.office.store import OfficeStore
@@ -102,10 +103,50 @@ class Decide(BaseModel):
     decision: str = Field(pattern="^(approved|rejected)$")
 
 
+class HookCapture(BaseModel):
+    tool: str = Field(max_length=120)
+    tool_input: dict[str, Any] = Field(default_factory=dict)
+    tool_response: Any = None
+    mission_id: str | None = None
+    session_id: str | None = None
+
+
+class Schedule(BaseModel):
+    send_at: str = Field(max_length=40)
+    timezone: str = Field(max_length=60)
+
+
+class Action(BaseModel):
+    action: str = Field(pattern="^(confirm|reject|correct)$")
+    text: str | None = Field(default=None, max_length=2000)
+
+
+class Text(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+
+
+class Label(BaseModel):
+    label: str = Field(pattern="^(positive|negative|opted_out)$")
+
+
+class Progress(BaseModel):
+    progress: str = Field(pattern="^(progressed|stalled|disqualified)$")
+
+
+class Conclude(BaseModel):
+    decision: str = Field(pattern="^(keep|roll_back)$")
+
+
 class Proposal(BaseModel):
     change: str = Field(min_length=3, max_length=300)
     evidence: str = Field(min_length=3, max_length=1000)
     outcome_ids: list[str] = Field(default_factory=list, max_length=500)
+    dimension: str | None = Field(default=None, pattern="^[a-z_]{1,40}$")
+    value: str | None = Field(default=None, pattern="^[A-Za-z0-9_ .-]{1,60}$")
+
+
+class AudiencePick(BaseModel):
+    audience: str = Field(min_length=1, max_length=40, pattern="^[a-z_]+$")
 
 
 class HookEvent(BaseModel):
@@ -155,12 +196,19 @@ def office_router(services: Services, office: OfficeStore, runner: MissionRunner
         s = services.settings
         return {
             "missions": mission_summary(services),
-            "health": integration_health(services),
+            "health": integration_health(services, connectors.states()),
             "harness": harness_connectors(connectors.states()),
+            "connectors_checked": connectors.checked,
+            "connectors_checking": connectors.checking,
             "prompts": prompt_versions(),
             "mode": s.run_mode,
             "provider_modes": dict(s.provider_modes),
         }
+
+    @r.post("/connectors/refresh", status_code=202)
+    def refresh_connectors() -> dict[str, bool]:
+        connectors.refresh_now()
+        return {"ok": True}
 
     @r.post("/missions", status_code=201)
     def start_mission(body: NewMission) -> dict[str, Any]:
@@ -285,24 +333,137 @@ def office_router(services: Services, office: OfficeStore, runner: MissionRunner
         known(mission_id)
         return done(mission_id, services.workflow.add_cost(mission_id, body.fields))
 
+    @r.post("/missions/{mission_id}/accounts/{account_id}/target", status_code=201)
+    def target_from_account(mission_id: str, account_id: int, body: AudiencePick) -> dict[str, Any]:
+        """A researched, qualified account as an outreach target. A rejected one is refused."""
+        known(mission_id)
+        return done(
+            mission_id, services.workflow.target_from_account(mission_id, account_id, body.audience)
+        )
+
     @r.post("/missions/{mission_id}/proposals", status_code=201)
     def add_proposal(mission_id: str, body: Proposal) -> dict[str, Any]:
         known(mission_id)
         out = services.workflow.add_proposal(
-            mission_id, body.change, body.evidence, body.outcome_ids
+            mission_id, body.change, body.evidence, body.outcome_ids, body.dimension, body.value
         )
         return done(mission_id, out)
 
     @r.post("/missions/{mission_id}/proposals/{proposal_id}")
     def decide_proposal(mission_id: str, proposal_id: str, body: Decide) -> dict[str, Any]:
         known(mission_id)
-        out = services.workflow.decide_proposal(mission_id, proposal_id, body.decision)
+        out = services.feedback.decide_proposal(mission_id, proposal_id, body.decision)
         return done(mission_id, out)
 
     @r.post("/missions/{mission_id}/strategy/{version}/rollback")
     def rollback(mission_id: str, version: int) -> dict[str, Any]:
         known(mission_id)
-        return done(mission_id, services.workflow.rollback_strategy(mission_id, version))
+        return done(mission_id, services.feedback.rollback(mission_id, version))
+
+    fb = services.feedback
+
+    def director(mission_id: str, shown: str, instruction: str) -> dict[str, bool]:
+        known(mission_id)
+        office.add_message(mission_id, "user", shown)
+        runner.send(mission_id, instruction)
+        return {"ok": True}
+
+    @r.post("/missions/{mission_id}/check-replies", status_code=202)
+    def check_replies(mission_id: str) -> dict[str, bool]:
+        return director(mission_id, "Check for replies.", "Check for replies.")
+
+    @r.post("/missions/{mission_id}/import-meetings", status_code=202)
+    def import_meetings(mission_id: str) -> dict[str, bool]:
+        return director(
+            mission_id, "Import meetings from Wispr Flow.", "Import meetings from Wispr Flow."
+        )
+
+    @r.post("/missions/{mission_id}/review-learning", status_code=202)
+    def review_learning(mission_id: str) -> dict[str, bool]:
+        return director(mission_id, "Review what we learned.", "Review what we learned.")
+
+    @r.post("/missions/{mission_id}/outreach/{outreach_id}/schedule")
+    def schedule(mission_id: str, outreach_id: str, body: Schedule) -> dict[str, Any]:
+        known(mission_id)
+        return done(
+            mission_id, fb.schedule_send(mission_id, outreach_id, body.send_at, body.timezone)
+        )
+
+    @r.post("/missions/{mission_id}/outreach/{outreach_id}/cancel-schedule")
+    def cancel_schedule(mission_id: str, outreach_id: str) -> dict[str, Any]:
+        known(mission_id)
+        return done(mission_id, fb.cancel_schedule(mission_id, outreach_id))
+
+    @r.post("/missions/{mission_id}/outreach/{outreach_id}/follow-up", status_code=201)
+    def follow_up(mission_id: str, outreach_id: str) -> dict[str, Any]:
+        known(mission_id)
+        return done(mission_id, fb.write_follow_up(mission_id, outreach_id))
+
+    @r.post("/missions/{mission_id}/outreach/{outreach_id}/mark-sent")
+    def mark_sent(mission_id: str, outreach_id: str, body: Text) -> dict[str, Any]:
+        known(mission_id)
+        return done(mission_id, fb.mark_sent(mission_id, outreach_id, body.text))
+
+    @r.post("/missions/{mission_id}/targets/{target_id}/suppress")
+    def suppress(mission_id: str, target_id: str, body: Text) -> dict[str, Any]:
+        known(mission_id)
+        return done(mission_id, fb.suppress(mission_id, target_id, body.text))
+
+    @r.post("/missions/{mission_id}/replies/{reply_id}")
+    def label_reply(mission_id: str, reply_id: str, body: Label) -> dict[str, Any]:
+        known(mission_id)
+        return done(mission_id, fb.label_reply(mission_id, reply_id, body.label))
+
+    @r.post("/missions/{mission_id}/meetings/{meeting_id}/link")
+    def link_meeting(mission_id: str, meeting_id: str, body: Text) -> dict[str, Any]:
+        known(mission_id)
+        return done(mission_id, fb.link_meeting(mission_id, meeting_id, body.text))
+
+    @r.post("/missions/{mission_id}/meetings/{meeting_id}/progress")
+    def meeting_progress(mission_id: str, meeting_id: str, body: Progress) -> dict[str, Any]:
+        known(mission_id)
+        return done(mission_id, fb.set_progress(mission_id, meeting_id, body.progress))
+
+    @r.post("/missions/{mission_id}/insights/{insight_id}")
+    def review_insight(mission_id: str, insight_id: str, body: Action) -> dict[str, Any]:
+        known(mission_id)
+        return done(mission_id, fb.review_insight(mission_id, insight_id, body.action, body.text))
+
+    @r.post("/missions/{mission_id}/lessons/{lesson_id}/decide")
+    def decide_lesson(mission_id: str, lesson_id: str, body: Decide) -> dict[str, Any]:
+        known(mission_id)
+        return done(mission_id, fb.decide_lesson(mission_id, lesson_id, body.decision))
+
+    @r.post("/missions/{mission_id}/lessons/{lesson_id}/edit")
+    def edit_lesson(mission_id: str, lesson_id: str, body: Text) -> dict[str, Any]:
+        known(mission_id)
+        return done(mission_id, fb.edit_lesson(mission_id, lesson_id, body.text))
+
+    @r.post("/missions/{mission_id}/lessons/{lesson_id}/delete")
+    def delete_lesson(mission_id: str, lesson_id: str) -> dict[str, Any]:
+        known(mission_id)
+        return done(mission_id, fb.delete_lesson(mission_id, lesson_id))
+
+    @r.post("/missions/{mission_id}/experiments/{experiment_id}")
+    def conclude(mission_id: str, experiment_id: str, body: Conclude) -> dict[str, Any]:
+        known(mission_id)
+        return done(mission_id, fb.conclude_experiment(mission_id, experiment_id, body.decision))
+
+    @r.post("/missions/{mission_id}/demo-results", status_code=201)
+    def demo_results(mission_id: str) -> dict[str, Any]:
+        known(mission_id)
+        return done(mission_id, fb.seed_demo(mission_id))
+
+    @r.post("/hook/capture", status_code=202)
+    def hook_capture(body: HookCapture) -> dict[str, Any]:
+        mission = body.mission_id
+        if not mission and body.session_id:
+            mission = office.mission_for_session(body.session_id)
+        if not (mission and MISSION_ID.fullmatch(mission)):
+            return {"ok": False, "error": "no_mission"}
+        out = fb.capture(mission, body.tool, body.tool_input, body.tool_response)
+        office.touch(mission)
+        return out
 
     @r.post("/permissions/{permission_id}")
     def answer(permission_id: str, body: Decision) -> dict[str, bool]:
@@ -369,6 +530,8 @@ def install_office(app: FastAPI, services: Services, runner: MissionRunner | Non
     app.state.office = office
     app.state.runner = active
     app.include_router(office_router(services, office, active))
+    if runner is None:
+        scheduler.start(services.feedback, active)
 
     @app.middleware("http")
     async def guard(

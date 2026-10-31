@@ -11,7 +11,7 @@ from trigger_point.providers.crustdata.models import (
     JobSearchRequest,
     JobSort,
 )
-from trigger_point.research.signals import persona_keywords
+from trigger_point.research.signals import persona_keywords, posting_signal
 
 MAX_TITLE_KEYWORDS = 8
 JOB_FIELDS = [
@@ -26,9 +26,8 @@ JOB_FIELDS = [
 def compile_job_request(
     account_ids: list[int], plan: GTMPlan, reference_date: date, limit: int
 ) -> JobSearchRequest:
-    window = plan.freshness_days.get(
-        "support_team_growth", DEFAULT_FRESHNESS_DAYS["support_team_growth"]
-    )
+    signal = posting_signal(plan) or "support_team_growth"
+    window = plan.freshness_days.get(signal, DEFAULT_FRESHNESS_DAYS[signal])
     since = reference_date - timedelta(days=window)
     conditions: list[JobCondition | JobConditionGroup] = [
         JobCondition(field="company.basic_info.company_id", type="in", value=list(account_ids)),

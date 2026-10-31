@@ -241,6 +241,28 @@ def test_integrations_never_claim_a_connection_that_does_not_exist(h: Harness) -
     assert states["email"] == "disabled" and states["crustdata"] == "no_key"
 
 
+def test_crustdata_shows_live_once_a_live_discovery_run_completes(h: Harness) -> None:
+    from datetime import UTC, datetime
+
+    from trigger_point.mission.service import DiscoveryRun
+
+    before = h.client.get("/api/office/bootstrap", headers=h.auth).json()["health"]
+    assert next(x for x in before if x["id"] == "crustdata")["state"] == "no_key"
+    h.rig.services.store.save_discovery(
+        DiscoveryRun(
+            id="disc_live_1",
+            mission_id="wm_x",
+            mode="live",
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
+            outcome="completed",
+        )
+    )
+    after = h.client.get("/api/office/bootstrap", headers=h.auth).json()["health"]
+    crust = next(x for x in after if x["id"] == "crustdata")
+    assert crust["state"] == "live" and crust["last_success"]
+
+
 def test_cancel_stops_the_director_and_denies_open_prompts(h: Harness) -> None:
     mid = h.client.post("/api/office/missions", json=NEW, headers=h.auth).json()["mission_id"]
     pid = h.office.open_permission(mid, None, None, "t", {})
@@ -290,3 +312,15 @@ def test_the_stream_says_it_is_alive_more_often_than_the_browser_gives_up() -> N
     routes = Path("src/trigger_point/office/routes.py").read_text()
     client = Path("office/src/api.ts").read_text()
     assert "> 10:" in routes and "SILENCE_MS = 25_000" in client
+
+
+def test_the_page_can_ask_for_a_fresh_connector_check(
+    h: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("trigger_point.office.connectors.shutil.which", lambda _name: None)
+    assert h.client.post("/api/office/connectors/refresh", headers=h.auth).status_code == 202
+    assert (
+        h.client.post("/api/office/connectors/refresh").status_code == 401
+    )  # like every office route
+    boot = h.client.get("/api/office/bootstrap", headers=h.auth).json()
+    assert set(boot) >= {"harness", "connectors_checked", "connectors_checking"}

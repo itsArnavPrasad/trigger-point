@@ -15,13 +15,17 @@ Browser -> FastAPI /api/office -> Mission Runner -> claude --agent mission-direc
 |---|---|---|
 | Claude Code harness | Runs the agent workflow, invokes tools, coordinates subagents | Built |
 | Trigger Point core | Domain logic, mission state, scores, evidence, rules, approvals, outcomes | Built |
-| MCP server | Narrow, typed tools. Only workflow tools can change a mission | Built, 29 tools |
+| MCP server | Narrow, typed tools. Only workflow tools can change a mission. None can approve learning | Built, 36 tools |
 | Hooks | Lifecycle telemetry and deterministic controls | Built |
 | Mission Runner | Starts and resumes the Director from the Office (`office/runner.py`) | Built |
+| Scheduler | Asks the Director when a scheduled send is due (`office/scheduler.py`). The send is still held for a click | Built |
+| Feedback loop | `workflow/loop.py` (pure rules), `workflow/feedback.py`: raw capture, replies, meetings, lessons, experiments | Built |
 | Database and event log | State, events, artifacts, evidence, approvals, versions | Built |
 | Office backend | `src/trigger_point/office`: token auth, dashboards, held approvals, live ticks | Built |
 | Office UI | `office/`. Renders authoritative state, never invents progress | Built |
-| Connectors | Crustdata, Wispr Flow, CRM, email, calendar, web research, finance. Each declares capabilities and limits | Web, Gmail and Calendar live; Crustdata untested; rest missing |
+| Connectors | Crustdata, Wispr Flow, CRM, email, calendar, web research, finance. Each declares capabilities and limits | Web, Gmail, Calendar and Wispr live; Crustdata untested; rest missing |
+
+**Raw capture.** The `PostToolUse` hook stores Gmail and Wispr responses as returned. Code parses them, so a reply or transcript never depends on a model retyping it.
 
 **Use each mechanism for its job.** `CLAUDE.md` for concise context. Skills for repeatable procedures. Subagents for bounded work with structured results. MCP for typed access. Hooks for telemetry and controls. Application code for durable state, retries, scoring, validation and approvals. Hooks are never the workflow engine, and a prompt alone never enforces safety.
 

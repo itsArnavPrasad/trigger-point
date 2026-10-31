@@ -846,3 +846,155 @@ def normalise_contacts(
                 out[pid] = points
             break
     return out
+
+
+# ---- Social post search (/social_post/search) ----
+# Billed per post returned, so a request names its author, topic and date window up front.
+# It never asks for names, headlines, reactors or comments: a post's text, its public URL and
+# the author's role and employer are all the evidence a signal needs.
+
+POST_FILTERABLE_FIELDS: frozenset[str] = frozenset(
+    {
+        "text",
+        "hashtags",
+        "post_type",
+        "date_posted",
+        "actor.actor_type",
+        "actor.crustdata_entity_id",
+        "actor.title",
+        "actor.company_name",
+        "actor.location.city",
+        "actor.location.state",
+        "actor.location.country",
+    }
+)
+POST_RESPONSE_FIELDS: tuple[str, ...] = (
+    "share_url",
+    "date_posted",
+    "text",
+    "post_type",
+    "actor.crustdata_entity_id",
+    "actor.title",
+    "actor.company_name",
+)
+POST_SORT_FIELDS = ("date_posted", "engagement.total_reactions")
+MAX_POST_CHARS = 2000
+
+
+class PostCondition(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    field: str
+    type: Operator
+    value: str | int | float | bool | list[str | int | float] | None
+
+    @field_validator("field")
+    @classmethod
+    def _known_field(cls, v: str) -> str:
+        if v not in POST_FILTERABLE_FIELDS:
+            raise ValueError(f"{v!r} is not a supported Crustdata post filter field")
+        return v
+
+    @model_validator(mode="after")
+    def _value_matches_operator(self) -> Self:
+        _check_operator_value(self.type, self.value)
+        return self
+
+
+class PostConditionGroup(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    op: Literal["and", "or"]
+    conditions: list[PostCondition | PostConditionGroup] = Field(min_length=1)
+
+
+class PostSort(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    field: str
+    order: Literal["asc", "desc"]
+
+    @field_validator("field")
+    @classmethod
+    def _known_field(cls, v: str) -> str:
+        if v not in POST_SORT_FIELDS:
+            raise ValueError(f"{v!r} is not a supported post sort field")
+        return v
+
+
+class PostSearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    filters: PostCondition | PostConditionGroup
+    limit: int = Field(default=5, ge=1, le=25)
+    sorts: list[PostSort] | None = None
+    fields: list[str] | None = None
+
+    @model_validator(mode="after")
+    def _fields_selectable(self) -> Self:
+        for f in self.fields or []:
+            if f not in POST_RESPONSE_FIELDS:
+                raise ValueError(f"{f!r} is not a selectable post field")
+        return self
+
+    def to_body(self) -> dict[str, Any]:
+        body = self.model_dump(mode="json", exclude_none=True)
+        body["fields"] = list(self.fields or POST_RESPONSE_FIELDS)
+        body.setdefault("sorts", [{"field": "date_posted", "order": "desc"}])
+        return body
+
+
+class _PostActor(_Lenient):
+    crustdata_entity_id: int | None = None
+    title: str | None = None
+    company_name: str | None = None
+
+
+class _Post(_Lenient):
+    share_url: str | None = None
+    date_posted: str | None = None
+    text: str | None = None
+    post_type: str | None = None
+    actor: _PostActor | None = None
+
+
+class PostSearchResponse(_Lenient):
+    posts: list[_Post]
+    next_cursor: str | None = None
+    total_count: int | None = None
+
+
+class SocialPost(BaseModel):
+    """A public post, reduced to what a signal needs. There is no name or headline on purpose."""
+
+    model_config = ConfigDict(frozen=True)
+
+    post_url: str | None
+    text: str
+    posted_on: date | None
+    post_type: str | None
+    author_id: int | None
+    author_title: str | None
+    author_company: str | None
+    retrieved_at: datetime
+    source_endpoint: str = "/social_post/search"
+
+
+class PostSearchPage(BaseModel):
+    posts: list[SocialPost]
+    next_cursor: str | None
+    total_count: int | None
+
+
+def normalise_post(p: _Post, retrieved_at: datetime) -> SocialPost:
+    actor = p.actor or _PostActor()
+    return SocialPost(
+        post_url=p.share_url,
+        text=(p.text or "")[:MAX_POST_CHARS],
+        posted_on=_iso_date(p.date_posted),
+        post_type=p.post_type,
+        author_id=actor.crustdata_entity_id,
+        author_title=actor.title,
+        author_company=actor.company_name,
+        retrieved_at=retrieved_at,
+    )

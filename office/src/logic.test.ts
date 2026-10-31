@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentLabel, elapsed, flowSteps, journey, liveness, contactStatus, gmailCompose, initials, meetingStatus, modeLabel, profileLink, telHref, rankNote, scoreLine, permissionLabel, safeHref, splitMeetings, tokenFromHash } from './logic'
+import { agentLabel, connState, connectionRows, connectionsReady, contactStatus, elapsed, flowSteps, gmailCompose, initials, journey, liveness, meetingStatus, modeLabel, percent, permissionLabel, profileLink, rankNote, safeHref, scoreLine, signalLabel, splitMeetings, telHref, tokenFromHash } from './logic'
 import type { MissionView } from './types'
 
 const view = (over: Partial<MissionView> & { state?: string } = {}) => ({
@@ -142,6 +142,33 @@ describe('contact buttons', () => {
   })
 })
 
+describe('connection prompt', () => {
+  const harness = (gmail: string, calendar: string, wispr?: string) => [
+    { id: 'claude.ai Gmail', state: gmail }, { id: 'claude.ai Google Calendar', state: calendar },
+    ...(wispr ? [{ id: 'claude.ai Wispr Flow', state: wispr }] : []),
+  ]
+  it('reads what Claude Code reports, and treats anything unknown as not connected', () => {
+    expect(connState(harness('connected', 'needs_auth', 'failed'), 'claude.ai Gmail')).toBe('connected')
+    expect(connState(harness('connected', 'needs_auth', 'failed'), 'claude.ai Google Calendar')).toBe('needs_sign_in')
+    expect(connState(harness('connected', 'connected', 'failed'), 'claude.ai Wispr Flow')).toBe('failed')
+    expect(connState(harness('unknown', 'connected'), 'claude.ai Gmail')).toBe('not_connected')
+    expect(connState([], 'claude.ai Gmail')).toBe('not_connected')
+  })
+  it('asks while a required tool is missing', () => {
+    expect(connectionsReady(connectionRows(harness('connected', 'unknown', 'connected'), false))).toBe(false)
+    expect(connectionsReady(connectionRows(harness('needs_auth', 'connected', 'connected'), true))).toBe(false)
+  })
+  it('asks about Wispr until it is connected or skipped, and skipping never hides a required tool', () => {
+    expect(connectionsReady(connectionRows(harness('connected', 'connected', 'unknown'), false))).toBe(false)
+    expect(connectionsReady(connectionRows(harness('connected', 'connected', 'unknown'), true))).toBe(true)
+    expect(connectionsReady(connectionRows(harness('unknown', 'connected', 'unknown'), true))).toBe(false)
+  })
+  it('stays quiet when everything is connected, and a skipped tool that later connects counts as connected', () => {
+    expect(connectionsReady(connectionRows(harness('connected', 'connected', 'connected'), false))).toBe(true)
+    expect(connectionRows(harness('connected', 'connected', 'connected'), true).every(r => !r.skipped)).toBe(true)
+  })
+})
+
 describe('safety', () => {
   it('links only http(s)', () => {
     expect(safeHref('https://a.example')).toBe('https://a.example')
@@ -155,5 +182,23 @@ describe('safety', () => {
     const now = Date.parse('2026-10-31')
     expect(elapsed(new Date(now - 30_000).toISOString(), null, now)).toBe('30s')
     expect(elapsed(null)).toBe('')
+  })
+})
+
+describe('percent', () => {
+  it('never shows a rate with no sends behind it', () => {
+    expect(percent(0, 0)).toBe('Unknown')
+    expect(percent(0.256, 8)).toBe('26%')
+    expect(percent(0, 8)).toBe('0%')
+  })
+})
+
+describe('signalLabel', () => {
+  it('says what a signal means in plain words', () => {
+    expect(signalLabel('topic_engagement')).toBe('Staff post about the topic')
+    expect(signalLabel('recent_funding')).toBe('Recent funding')
+  })
+  it('falls back to the type itself, never to a blank', () => {
+    expect(signalLabel('some_new_signal')).toBe('some new signal')
   })
 })

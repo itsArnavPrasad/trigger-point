@@ -3,11 +3,12 @@
 _Current truth, measured against `docs/GTM_OS_PRODUCT_SPEC.md`. A status changes only with a test or a real run._
 
 ## 1. Executive summary
-Trigger Point runs one complete path under real Claude Code from the Office: website, sourced profile, strategy, versioned ICP, accounts, signals, a buyer, a case file, verified outreach, hash-bound approval, and a test send and meeting.
+Trigger Point runs one complete path under real Claude Code from the Office: website, sourced profile, strategy, versioned ICP, accounts, signals, a buyer, a case file, verified outreach, hash-bound approval, and a test send and meeting. What comes back feeds a closed loop: replies and meetings become reviewed insights, then lessons, then a versioned change that future work receives and that is measured against a holdout.
 
-- **Score:** of 138 checklist items, 47 are working, 55 partial, 34 missing, 0 broken, 1 unverified and 1 not applicable.
-- **Biggest blocker:** no call to Crustdata has run, because `CRUSTDATA_API_KEY` is empty. Every Crustdata-dependent WORKING status means "works on fixtures and mocks".
-- **Biggest missing area:** the meeting loop. Wispr Flow is not connected.
+- **Score:** of 138 checklist items, 67 are working, 52 partial, 19 missing, 0 broken, 0 unverified and 0 not applicable.
+- **Biggest blocker:** finding a "why now" for Indian schools. Live discovery returns real Mumbai schools, but Crustdata holds no job postings for them, so each is rejected with `no_fresh_why_now`. Case files and drafts on live accounts stay unproven until a real signal exists.
+- **Biggest missing area:** outside market research.
+- **The loop has not run on real results.** It is proven end to end on labelled fixture data. Test sends never teach, so it needs real sends you log or real meetings.
 - **Email:** real sends work, to the test inbox only. Mail from a consumer Gmail account landed in spam, so real outreach needs an authenticated sending domain first.
 
 ## 2. Repository and runtime architecture
@@ -15,13 +16,13 @@ Trigger Point runs one complete path under real Claude Code from the Office: web
 |---|---|---|
 | Claude Code harness | `.claude/` | 8 agents, 3 skills, project hooks |
 | Trigger Point core | `src/trigger_point` | Python 3.12. State machine, scoring, evidence, approvals |
-| MCP server | `src/trigger_point/mcp_server.py`, `workflow/mcp_tools.py` | stdio, 29 tools, 6 ask-gated |
+| MCP server | `src/trigger_point/mcp_server.py`, `workflow/mcp_tools.py` | stdio, 36 tools, 6 ask-gated. No tool can approve learning |
 | Persistence | SQLite | `trigger_point.db`; `wf_events` is the event log |
 | Office backend | `src/trigger_point/office` | FastAPI, token auth, held approvals, live ticks |
 | Office UI | `office/` | React and Vite, built from scratch |
 | Mission Runner | `src/trigger_point/office/runner.py` | Starts and resumes the Director from the Office |
 | LLM | Hyde GLM 5.3 Flash | Structured extraction, strategy, ICP and drafts. Claude runs the workflow |
-| Background worker | none | MISSING. Nothing scheduled runs without the Office |
+| Scheduler | `src/trigger_point/office/scheduler.py` | Runs while the Office runs. Asks the Director when a send is due |
 
 ## 3. Status matrix
 | Area | Items | WORKING | PARTIAL | MISSING | BROKEN | UNVERIFIED | N/A |
@@ -31,15 +32,15 @@ Trigger Point runs one complete path under real Claude Code from the Office: web
 | 3. ICP creation: account-level fit | 12 | 5 | 5 | 2 | 0 | 0 | 0 |
 | 4. Value proposition, positioning, and messaging | 9 | 7 | 1 | 1 | 0 | 0 | 0 |
 | 5. Buying committee and stakeholder profiles | 9 | 1 | 7 | 1 | 0 | 0 | 0 |
-| 6. Account discovery and identity resolution | 10 | 6 | 2 | 1 | 0 | 1 | 0 |
+| 6. Account discovery and identity resolution | 10 | 7 | 2 | 1 | 0 | 0 | 0 |
 | 7. Buying signals and account research | 10 | 4 | 6 | 0 | 0 | 0 | 0 |
-| 8. GTM motion, channel, and campaign planning | 12 | 7 | 4 | 0 | 0 | 0 | 1 |
-| 9. Meeting and customer feedback loop | 11 | 0 | 1 | 10 | 0 | 0 | 0 |
-| 10. Self-improvement and organizational learning | 15 | 5 | 6 | 4 | 0 | 0 | 0 |
-| 11. Pipeline, meetings, and CRM | 8 | 1 | 2 | 5 | 0 | 0 | 0 |
+| 8. GTM motion, channel, and campaign planning | 12 | 11 | 1 | 0 | 0 | 0 | 0 |
+| 9. Meeting and customer feedback loop | 11 | 8 | 2 | 1 | 0 | 0 | 0 |
+| 10. Self-improvement and organizational learning | 15 | 12 | 3 | 0 | 0 | 0 | 0 |
+| 11. Pipeline, meetings, and CRM | 8 | 1 | 4 | 3 | 0 | 0 | 0 |
 | 12. Finance and unit economics | 9 | 1 | 5 | 3 | 0 | 0 | 0 |
 | 13. GTM Office interface and observability | 13 | 5 | 8 | 0 | 0 | 0 | 0 |
-| **Total** | **138** | **47** | **55** | **34** | **0** | **1** | **1** |
+| **Total** | **138** | **67** | **52** | **19** | **0** | **0** | **0** |
 
 ## 4. Evidence for every item
 Effort: S under 1 day, M 1 to 3 days, L 3 to 10 days, XL 2 weeks or more. These are ranges, not commitments.
@@ -124,7 +125,7 @@ Effort: S under 1 day, M 1 to 3 days, L 3 to 10 days, XL 2 weeks or more. These 
 | Item | Status | Sev | Effort | Evidence | Missing |
 |---|---|---|---|---|---|
 | Convert approved ICP into search criteria | WORKING | - | - | `mission/compiler.py`; `tests/mission/test_compiler.py`; verified end to end on fixtures. | - |
-| Use company and person providers, including Crustdata | UNVERIFIED | P0 | S | Adapter exists and is tested against mocks. `CRUSTDATA_API_KEY` is empty, so no call to api.crustdata.com has ever run. | A key and one live run. |
+| Use company and person providers, including Crustdata | WORKING | - | - | Live calls to identify, company, job and person search through the adapter; a full live mission ran through scoring. | - |
 | Deduplicate by canonical identity and domain | WORKING | - | - | `mission/selection.py`; `test_replay_discovery_dedupes_excludes_and_receipts`. | - |
 | Resolve subsidiaries, parents, brands, regional entities | MISSING | P2 | L | Domain and provider id only. | Hierarchy data. |
 | Store provider IDs, domain, name, geography, source, last-verified | PARTIAL | P2 | S | `Company` fields; `provider_updated_at`. | No last-verified date of our own. |
@@ -138,8 +139,8 @@ Effort: S under 1 day, M 1 to 3 days, L 3 to 10 days, XL 2 weeks or more. These 
 
 | Item | Status | Sev | Effort | Evidence | Missing |
 |---|---|---|---|---|---|
-| Search for product- and ICP-relevant signals | PARTIAL | P1 | L | Job postings and headcount via `research/signals.py`. Fixture only. | More sources. |
-| Funding, hiring, expansion, leadership, launches, tech, regulation, statements | PARTIAL | P1 | XL | Hiring and headcount only; `recent_funding` is noted as not collected. | Web search and enrich. |
+| Search for product- and ICP-relevant signals | PARTIAL | P1 | L | Job postings, headcount, funding and staff posts via `research/signals.py`, proven live. A staff post is dated, linked, and checked in code for the keyword and the exact employer name. | Leadership change, launches and regulation. |
+| Funding, hiring, expansion, leadership, launches, tech, regulation, statements | PARTIAL | P1 | L | Hiring, headcount, funding and public staff statements, proven live on real Mumbai educators. | Expansion, leadership, launches, regulation. |
 | Explain the link between signal and need | PARTIAL | P2 | M | Case hypotheses labelled inference. | Per-signal rationale. |
 | Store URL, title, publisher, publication and event dates, retrieval, excerpt, entity, status | PARTIAL | P1 | M | `Evidence` and `EvidenceRecord`. No title or publication date. | Two fields. |
 | Distinguish event date from retrieval date | WORKING | - | - | `event_on`, `as_of`, `retrieved_at`; `test_no_date_is_undated_and_retrieval_time_never_stands_in`. | - |
@@ -160,47 +161,47 @@ Effort: S under 1 day, M 1 to 3 days, L 3 to 10 days, XL 2 weeks or more. These 
 | Only real integrations or labelled manual workflow | WORKING | - | - | Trigger Point MCP tools cannot send. Gmail and Calendar reach only `TRIGGER_POINT_TEST_RECIPIENTS`. Meetings, outcomes and costs are labelled manual. | - |
 | Account- and persona-specific drafts | WORKING | - | - | Per target and audience; live on two audiences. | - |
 | Personalize with verified context; no fake familiarity | WORKING | - | - | verifier-v1 (18 tests) rejects fake familiarity and past-relative time. | - |
-| Sequences with stop rules, replies, suppression, opt-out, duplicates | PARTIAL | P2 | L | `follow_ups` angle plan; gate-v1 duplicate check, `quality_gate`. | No bodies, stops or suppression. |
-| Experiment hypotheses, variants, samples, metrics, decision rules | PARTIAL | P2 | L | Defined in the strategy record. | Running them, and decision rules. |
-| Human approval before external messages or changes | WORKING | - | - | No Trigger Point tool sends (`test_no_tool_can_send_or_write_outward`); hash-bound approval; ask-gated tools held in the Office, proven by real clicks; the hook denies recipients outside the allowlist. | - |
-| Keep drafts separate from scheduled, sent, delivered, replied, booked | PARTIAL | P2 | M | Outreach records: verified, rejected, approved, with test sends stored separately. | Scheduled, delivered and replied states. |
-| Show schedule, timezone, channel, recipient, step, status, errors | NOT_APPLICABLE | P3 | L | No scheduler exists, so there is nothing to show. | - |
+| Sequences with stop rules, replies, suppression, opt-out, duplicates | WORKING | - | - | `write_follow_up`, three steps, stops on any answer; suppression and duplicate checks. | - |
+| Experiment hypotheses, variants, samples, metrics, decision rules | WORKING | - | - | Each approved change runs with a variant, metric and decision rule. | - |
+| Human approval before external messages or changes | WORKING | - | - | No Trigger Point tool sends (`test_no_tool_can_send_or_write_outward`); hash-bound approval; held calls proven by real clicks; the hook denies recipients outside the allowlist; a scheduled send is still held for a click. | - |
+| Keep drafts separate from scheduled, sent, delivered, replied, booked | WORKING | - | - | `lifecycle`: each state needs its own proof. | - |
+| Show schedule, timezone, channel, recipient, step, status, errors | WORKING | - | - | Outreach card shows time, timezone, channel, recipient, step, state and error. | - |
 
 ### 9. Meeting and customer feedback loop
 
 | Item | Status | Sev | Effort | Evidence | Missing |
 |---|---|---|---|---|---|
-| Integrate Wispr Flow MCP when available and authorized | MISSING | P1 | M | Not configured. Vendor docs confirm read-only access; they do not name the tools. | Notetaker and MCP access on the account. |
-| Verify real connection and read permissions | MISSING | P1 | S | Wispr Flow is not connected. | A real read of an expected meeting. |
-| Match a meeting to account, people, opportunity, campaign | MISSING | P1 | L | Wispr Flow is not connected. | Identifier matching. |
-| Import notes, summaries, transcripts, attendees, actions | MISSING | P1 | M | Wispr Flow is not connected. | Search covers titles, summaries and notes, not transcripts. |
-| Extract pains, outcomes, objections, budget, urgency, process, next steps | MISSING | P1 | L | Wispr Flow is not connected. | Insight schema. |
-| Preserve source links and references | MISSING | P1 | S | Wispr Flow is not connected. | Evidence kind `meeting`. |
-| Separate direct statements from interpretation | MISSING | P1 | M | Wispr Flow is not connected. | Claim classes. |
-| Mark missing or ambiguous details for review | MISSING | P2 | M | Wispr Flow is not connected. | Review queue. |
+| Integrate Wispr Flow MCP when available and authorized | WORKING | - | - | Real tools read through Claude Code. A live transcript was captured by the hook and parsed by `workflow/loop.py`. | - |
+| Verify real connection and read permissions | WORKING | - | - | `claude mcp list` drives the Integrations page; a real meeting was read. Wispr is read only. | - |
+| Match a meeting to account, people, opportunity, campaign | PARTIAL | P1 | L | Calendar id or a target name in the record links it; anything else goes to the review queue. `tests/workflow/test_feedback.py`. | People and opportunity matching. |
+| Import notes, summaries, transcripts, attendees, actions | WORKING | - | - | `import_meeting` reads the captured notes, summary and full transcript across cut-off parts. Attendees are stored when Wispr returns them. | - |
+| Extract pains, outcomes, objections, budget, urgency, process, next steps | WORKING | - | - | `add_meeting_insights` with ten kinds. A real Director run on a real Wispr account read two meetings in full, extracted 9 insights, and code verified 7 quotes against the complete transcripts; 2 went to review. | - |
+| Preserve source links and references | WORKING | - | - | Share link kept on each meeting and insight. | - |
+| Separate direct statements from interpretation | WORKING | - | - | A statement needs a quote found verbatim in the captured source; an interpretation goes to review. | - |
+| Mark missing or ambiguous details for review | WORKING | - | - | Review queue on the Meetings page: confirm, correct, reject. | - |
 | Update CRM only via connected writer under policy | MISSING | P2 | L | Wispr Flow is not connected. | CRM connector. |
-| Connect insights to ICP, messaging, opportunity, campaign version | MISSING | P1 | L | Wispr Flow is not connected. | Needs versions. |
-| Track progressed, stalled, disqualified | PARTIAL | P2 | M | Outcomes entered by hand; `workflow/gtm.py`. | Meeting-derived progress. |
+| Connect insights to ICP, messaging, opportunity, campaign version | PARTIAL | P1 | L | Meetings carry strategy and ICP versions; outcomes carry the message and version. | Opportunity link. |
+| Track progressed, stalled, disqualified | WORKING | - | - | Progressed, stalled and disqualified on each imported meeting. | - |
 
 ### 10. Self-improvement and organizational learning
 
 | Item | Status | Sev | Effort | Evidence | Missing |
 |---|---|---|---|---|---|
-| Durable versioned memory for facts, insights, outcomes, tactics, lessons | MISSING | P1 | XL | No lesson store. Strategy and ICP versions exist. | - |
-| Keep raw events and evidence separate from summaries | PARTIAL | P2 | M | `wf_events`, `Evidence` are raw and stored apart from case summaries. | No summarised memory. |
-| Retrieve relevant lessons into a new mission | MISSING | P2 | L | No lesson store. | - |
+| Durable versioned memory for facts, insights, outcomes, tactics, lessons | WORKING | - | - | Lessons with wording history, status, evidence and strategy version. | - |
+| Keep raw events and evidence separate from summaries | WORKING | - | - | Raw captures are stored apart and never sent to the page. | - |
+| Retrieve relevant lessons into a new mission | WORKING | - | - | `lessons_for`: approved lessons reach strategy, ICP and message prompts for that seller, across missions. | - |
 | Record hypothesis, prediction, experiment, outcome, confidence, decision | PARTIAL | P1 | L | Strategy experiments and proposals record hypotheses. | Predictions and decisions per experiment. |
-| Compare outcomes by segment, persona, signal, channel, message, offer, timing | PARTIAL | P2 | L | By signal only: `workflow/gtm.py`. | Other cuts. |
-| Distinguish correlation from causation | PARTIAL | P2 | M | Every proposal carries a correlation caveat. | Analysis beyond the caveat. |
-| Detect small samples, selection bias, attribution gaps, delays | PARTIAL | P2 | L | `MIN_SAMPLE` blocks proposals below 5 outcomes; `tests/workflow/test_gtm.py`. | Selection bias and attribution gaps. |
+| Compare outcomes by segment, persona, signal, channel, message, offer, timing | PARTIAL | P2 | L | By audience, signal (discovered accounts feed it), channel, strategy version and weekday. A signal lesson changes the next ICP in code. | Persona and offer cuts. |
+| Distinguish correlation from causation | WORKING | - | - | Every proposal says correlation; groups are flagged as not randomly assigned; a holdout gives a fair comparison. | - |
+| Detect small samples, selection bias, attribution gaps, delays | WORKING | - | - | Sample floor, recent sends held back, results with no send counted as attribution gaps, selection flagged. | - |
 | Propose changes to weights, messaging, qualification, channels | WORKING | - | - | `propose_changes`; `tests/workflow/test_gtm.py`. | - |
 | Show the evidence behind each change | WORKING | - | - | Learning page. | - |
 | Approval gate for material strategy changes | WORKING | - | - | Proposals need approval. | - |
 | Version changes; keep prior versions; allow rollback | WORKING | - | - | Versions and rollback; `tests/workflow/test_gtm.py`. | - |
-| Evaluate against a baseline or holdout | MISSING | P2 | L | No lesson store. | - |
-| Track whether a change improved outcomes | PARTIAL | P2 | L | Outcomes are tracked after a change. | Before and after comparison. |
+| Evaluate against a baseline or holdout | WORKING | - | - | One target in five is a holdout; `measure_experiment` compares after against the rest. Tested on fixture data. | - |
+| Track whether a change improved outcomes | PARTIAL | P2 | L | Meetings per message, with verdict and advised action. | Other metrics. |
 | Never learn from synthetic fixture data | WORKING | - | - | Hard filter on `mode`; a test meeting never teaches: `test_a_booked_test_meeting_never_teaches`. | - |
-| Inspect, correct, approve or delete memory | MISSING | P1 | L | No lesson store. | - |
+| Inspect, correct, approve or delete memory | WORKING | - | - | Lessons on the Learning page: approve, reject, reword, delete. | - |
 
 ### 11. Pipeline, meetings, and CRM
 
@@ -209,9 +210,9 @@ Effort: S under 1 day, M 1 to 3 days, L 3 to 10 days, XL 2 weeks or more. These 
 | Define stages and entry and exit criteria | WORKING | - | - | `build_pipeline` with criteria per stage; Pipeline page. | - |
 | Track account, contact, campaign, activity, meeting, opportunity, proposal, closed, renewal | MISSING | P2 | XL | Hand-entered outcomes only. No CRM is connected. | CRM connector. |
 | Track booked, held, qualified, created, value, win/loss, reason | PARTIAL | P2 | L | `build_pipeline` counts each stage from outcomes; a real calendar event reached `meeting_booked`. | CRM sync. |
-| Track follow-up commitments and due dates | MISSING | P2 | M | No CRM is connected. | - |
+| Track follow-up commitments and due dates | PARTIAL | P2 | M | Commitments and next steps are insight kinds. | Due dates. |
 | Deduplicate activity across integrations | MISSING | P2 | L | No CRM is connected. | - |
-| Separate provider events from inferred CRM status | MISSING | P2 | M | No CRM is connected. | - |
+| Separate provider events from inferred CRM status | PARTIAL | P2 | M | Every outcome records its source. | Inferred CRM status. |
 | Show next action and owner per opportunity | PARTIAL | P2 | M | Pipeline shows the next action. | Owner. |
 | Reconcile attribution and flag uncertainty | MISSING | P2 | L | No CRM is connected. | - |
 
@@ -250,9 +251,9 @@ Effort: S under 1 day, M 1 to 3 days, L 3 to 10 days, XL 2 weeks or more. These 
 ## 5. MCP, hooks, subagents, skills, prompts and connectors
 **MCP.** `trigger_point` connected in every real run. Tool errors are typed. MCP tool timeouts: not tested with a slow live call (UNVERIFIED).
 
-**Tool gaps against the spec:** `research_market`, `compare_icp_versions`, `resolve_company_identity`, `verify_person`, and the meeting tools.
+**Tool gaps against the spec:** `research_market`, `compare_icp_versions`, `resolve_company_identity`, `verify_person`.
 
-**Hooks.** `scripts/office_hook.py` handles telemetry and holds `PermissionRequest` for gated tools until a person answers in the Office. Its `PreToolUse` guard denies Gmail and Calendar writes outside the allowlist, and fails closed on any error.
+**Hooks.** `scripts/office_hook.py` handles telemetry and holds `PermissionRequest` for gated tools until a person answers in the Office. Its `PreToolUse` guard denies Gmail and Calendar writes outside the allowlist, and fails closed on any error. `PostToolUse` keeps the raw Gmail and Wispr response, so replies and transcripts never depend on a model retyping them.
 
 **Subagents.** 8 definitions with narrow tool lists. `mission-director` and `icp-strategist` have run for real. The other six are UNVERIFIED, because they sit after discovery.
 
@@ -276,13 +277,13 @@ Effort: S under 1 day, M 1 to 3 days, L 3 to 10 days, XL 2 weeks or more. These 
 **Connectors.**
 | Connector | State | Read/write | Env names | Notes |
 |---|---|---|---|---|
-| Crustdata REST | **Untested** | Read | `CRUSTDATA_API_KEY`, `CRUSTDATA_MODE` | Fixture mode. Budget, retries and typed errors tested on mocks |
+| Crustdata REST | **Working** | Read | `CRUSTDATA_API_KEY`, `CRUSTDATA_MODE` | Identify, company, job and person search proven live. 12 of 35 endpoints enabled for this key |
 | Crustdata plugin MCP | Connected to Claude Code | Read | none | Not used by Trigger Point: using it would bypass the adapter |
 | Web fetch | **Working** | Read | `WEB_MODE` | SSRF guarded. No JavaScript rendering. robots.txt not consulted |
 | Hyde GLM | **Working** | Read | `HYDE_INFERENCE_API_KEY`, `LLM_MODE` | Fixture mode available |
-| Gmail | **Working, test inbox only** | Send | `TRIGGER_POINT_TEST_RECIPIENTS` | Hook guard denies every other recipient. Replies are not read |
+| Gmail | **Working, test inbox only** | Send, read threads | `TRIGGER_POINT_TEST_RECIPIENTS` | Hook guard denies every other recipient. Thread capture proven live; a real reply has not arrived yet |
 | Google Calendar | **Working, test inbox only** | Create event, suggest time | `TRIGGER_POINT_TEST_RECIPIENTS` | Google Meet link created and recorded |
-| Wispr Flow MCP | **Missing** | Read only per docs | none | Tools are not named in vendor docs. Search skips transcripts |
+| Wispr Flow MCP | **Working** | Read only | none | Search, meeting and transcript reads. Long transcripts arrive in parts |
 | HubSpot, Zoom | Failed to connect | - | - | Plugin auth incompatible |
 | Salesforce, Apollo, Gong, Slack and others | Need auth | - | - | Not wired |
 | Finance sources | Missing | - | - | Costs entered by hand |
@@ -303,17 +304,36 @@ Effort: S under 1 day, M 1 to 3 days, L 3 to 10 days, XL 2 weeks or more. These 
 | Guard denies a recipient outside the allowlist, under real Claude Code | Pass |
 | Calendar event with Google Meet, read back, invite received | Pass |
 | Sends and meeting recorded and shown in the Office, labelled test | Pass |
+| Real Gmail thread captured by the hook and parsed in code | Pass |
+| Real Wispr transcript captured, parsed and quote-checked, on a copy of the database | Pass |
+| Whole loop clicked through in a real browser on fixture data: reply, review, proposal, approval, version, measurement, keep | Pass |
+| Live Crustdata company search, job search and person search against real accounts | Pass |
+| Live funding signal: a real `/company/search` call, through `signals_from_company`, produces a correctly dated `recent_funding` signal for `crustdata.com`'s real seed round | Pass |
+| A full live mission (profile, strategy, ICP, discovery, signals, people, score) on `learntulip.com`, run twice, correctly rejecting every account with `no_fresh_why_now` because the 11 real Mumbai schools found have no job postings or funding on Crustdata | Pass |
+| The Office's Integrations page shows Crustdata as live, with a real timestamp, after a real discovery run | Pass |
+
+| Live discovery on a real seller: real Mumbai schools found | Pass |
+| Live person search: employer id present, so the current-employer check works | Pass |
+| Full live mission through scoring, stopped honestly with no qualified account | Pass |
+
+**Why-now result.** Crustdata's job index returned 0 postings at any date for all 11 schools found. A news search for one school returned nothing, and web and news results carry no date field. Hiring cannot supply a why-now for this market.
+
+| Topic-engagement signal on real Mumbai schools: dated, linked staff posts about AI and edtech; a name that merely contains the account's (another campus) is rejected | Pass |
+| Industry and place filters: country-only discovery returned jewellers, adding the industry filter returned schools only | Pass |
+| Real Claude Code Director imported two real Wispr meetings, read each transcript in full, extracted 9 insights (7 quote-verified), then proposed 2 candidate lessons backed by 2 meetings each | Pass |
+| Real-account bug found and fixed: Wispr ends a cut transcript with a marker inside a fence line, so partial transcripts had been imported as complete | Fixed, tested |
 
 **Deliverability result.** The invite reached the test inbox with an "unknown sender" label. The test emails landed in spam there, as reported by the recipient.
 
 ## 7. Still UNVERIFIED
-- The **Send to test inbox** and **Book test meeting** buttons. Gmail and Calendar were tested through Claude Code; the button path needs a person's click on the held card.
-- A held prompt inside a subagent.
-- Everything after discovery under real Claude Code, including six subagents.
-- Any live Crustdata call.
+- **A real reply reaching the Replies card.** No reply exists yet in the mailbox. Reply to a test email, then click Check replies.
+- **Approving the real lessons, then a new mission's ICP.** Proven on fixture data with real clicks; the real lessons await a person's approval.
+- The **Send to test inbox**, **Book test meeting** and scheduled-send paths, which need a click on the held card.
+- A held prompt inside a subagent, and the six agents after discovery under real Claude Code.
+- A full live mission where the qualified accounts are real schools. The last run's only qualified account was a board, before the industry and place filters.
 
 ## 8. GTM workflow gaps
-In order of user impact: no live accounts; purely client-rendered sites; no outside market research; no reply reading; no scheduled sending; one case file per mission. Details in section 4.
+In order of user impact: no live accounts; purely client-rendered sites; no outside market research; one case file per mission. Details in section 4.
 
 **Reaching parents.** Crustdata finds schools as organisations, but not parents, so parents need a different channel.
 
@@ -323,20 +343,22 @@ In order of user impact: no live accounts; purely client-rendered sites; no outs
 - Stakeholder roles are inferred from titles, and messages are per audience, not per named person.
 
 ## 10. Wispr Flow and meeting gaps
-Meetings are entered by hand, or recorded from a test calendar event. Wispr Flow needs account sign-in with Notetaker and MCP access, and it is read only. Its search covers titles, summaries and notes, not transcripts. Tool names must come from a real connection, so the adapter waits for that.
+Wispr is read only. Meetings match accounts by calendar id or a target's name, so a meeting with neither goes to a person. Attendee emails are not returned by `get_meeting`, and nothing updates a CRM.
 
 ## 11. Self-improvement gaps
-| Stored? | State |
+| Step | State |
 |---|---|
-| Raw activity and evidence | Yes |
-| User corrections | Yes |
-| Outcomes | Yes, entered by hand |
-| Hypotheses, experiments | Defined, not run |
-| Proposed changes, decisions | Yes |
-| Versioned strategy, ICP | Yes |
-| Meeting insights | No |
-| Lesson memory for new missions | No |
-| Results after a change | Tracked, not compared |
+| 1. Capture a verified event or correction | Yes: raw Gmail and Wispr, plus reviewed corrections |
+| 2. Link it | Yes: message, audience, strategy and ICP version |
+| 3. Extract a candidate lesson | Yes: the Director proposes, with evidence ids |
+| 4. Check it | Yes: sample, recency, attribution, one-source refusal. Contradictions between insights are not checked |
+| 5. Propose a change | Yes |
+| 6. Approve | Yes: only in the Office |
+| 7. Version it | Yes: guidance in a new strategy version |
+| 8. Measure | Yes: against a holdout and earlier work. Sequential changes can overlap |
+| 9. Keep or roll back | Yes: rollback retires the lesson |
+
+**Limits.** An approved change reaches prompts as guidance. It does not change score-v1 weights, which stay deterministic and versioned in code. Real sends are logged by a person, because outreach to real recipients stays blocked.
 
 ## 12. Finance gaps
 Cost per unit, pipeline and revenue figures work from hand-entered records. There is no CRM, attribution window or forecast. Estimates are never shown as actuals.
@@ -359,13 +381,14 @@ See `docs/GTMO_IMPLEMENTATION_ROADMAP.md`.
 ## 15. What each remaining gap needs
 | Gap | Needs |
 |---|---|
-| Live accounts, signals, people | `CRUSTDATA_API_KEY` |
+| A why-now for schools | A decision on a signal source. See `docs/CRUSTDATA_INTEGRATION.md` |
 | Outside market research | A web search connector |
 | Wispr Flow meetings | Notetaker and MCP access |
 | CRM sync | A HubSpot or Salesforce connection |
 | Inbox placement for real outreach | A company domain with SPF, DKIM and DMARC |
+| Unattended reads | Allow the Gmail and Wispr reads in `.claude/settings.json`, or click each held card |
 | Reaching parents | A channel other than Crustdata |
-| Reply reading, scheduling, suppression, opt-out | Build work, after a real sending decision |
+| Sending to real recipients | A decision, then a tested path |
 | Client-rendered sites | Build work: a rendering step |
 
 ## Definition of done (spec Part F)
@@ -379,9 +402,9 @@ See `docs/GTMO_IMPLEMENTATION_ROADMAP.md`.
 | Signals have verified sources and event dates | Fixtures only |
 | Explainable score and case file per account | Yes, on fixtures |
 | Role-specific purpose and message per stakeholder | Partial: per audience |
-| Draft, scheduled, sent are different states | Partial: no scheduler |
+| Draft, scheduled, sent are different states | Yes |
 | No external send without approval | Yes |
-| Wispr insights traceable | No |
+| Wispr insights traceable | Yes |
 | Strategy change proposal with evidence | Yes |
 | Approved change creates a version | Yes |
 | Finance formulas tested | Yes |

@@ -245,11 +245,11 @@ export default function Home({ v, connected, live, go, onAnswer, onReview, onNot
 
         <Panel span={5} title="Learnings so far" action="Details" onAction={() => go('learning')}>
           <div className="learn-meter">
-            <div><b>{v.learning.counted}</b> of {v.learning.min_sample} real outcomes needed before Trigger Point proposes a change</div>
-            <i><em style={{ width: `${Math.min(100, (v.learning.counted / Math.max(1, v.learning.min_sample)) * 100)}%` }} /></i>
-            {v.learning.excluded_fixture > 0 && <small>{v.learning.excluded_fixture} fixture outcome{v.learning.excluded_fixture === 1 ? '' : 's'} excluded. Fixtures never teach.</small>}
+            <div><b>{v.learning.report.counted}</b> of {v.learning.report.min_sample} real outcomes needed before Trigger Point proposes a change</div>
+            <i><em style={{ width: `${Math.min(100, (v.learning.report.counted / Math.max(1, v.learning.report.min_sample)) * 100)}%` }} /></i>
+            {v.learning.report.excluded > 0 && <small>{v.learning.report.excluded} fixture outcome{v.learning.report.excluded === 1 ? '' : 's'} excluded. Fixtures never teach.</small>}
           </div>
-          {v.learning.proposals.map(p => <p key={p.signal} className="insight"><Icon name="sparkle" size={15} />{p.change} <small>{Math.round(p.rate * 100)}% vs {Math.round(p.baseline * 100)}% baseline, {p.sample} outcomes</small></p>)}
+          {v.learning.report.proposals.map(p => <p key={`${p.dimension}:${p.value}`} className="insight"><Icon name="sparkle" size={15} />{p.change} <small>{Math.round(p.rate * 100)}% vs {Math.round(p.baseline * 100)}% baseline, {p.sample} outcomes</small></p>)}
           {reasons.size > 0 && <>
             <h4 className="sub-head">Why we said no</h4>
             <ul className="reason-list">{[...reasons].map(([r, n]) => <li key={r}><span>{human(r)}</span><b>{n}</b></li>)}</ul>

@@ -32,11 +32,15 @@ from trigger_point.providers.crustdata.models import (
     PersonSearchPage,
     PersonSearchRequest,
     PersonSearchResponse,
+    PostSearchPage,
+    PostSearchRequest,
+    PostSearchResponse,
     SearchResponse,
     normalise_company,
     normalise_contacts,
     normalise_job,
     normalise_person,
+    normalise_post,
 )
 
 BASE_URL = "https://api.crustdata.com"
@@ -80,6 +84,14 @@ CONTACT_CREDITS_PER_PERSON = Decimal("3")
 
 def estimate_contact_credits(req: ContactEnrichRequest) -> Decimal:
     return CONTACT_CREDITS_PER_PERSON * len(req.targets)
+
+
+# Posts are billed per post returned, so the estimate is the most this request can return.
+POST_CREDITS_PER_RESULT = Decimal("0.5")
+
+
+def estimate_post_credits(req: PostSearchRequest) -> Decimal:
+    return POST_CREDITS_PER_RESULT * req.limit
 
 
 def estimate_job_credits(req: JobSearchRequest) -> Decimal:
@@ -265,6 +277,19 @@ class CrustdataClient:
         found = normalise_contacts(req, raw)
         receipt.result_count = len(found)
         return ProviderResult(found, receipt)
+
+    def search_posts(self, req: PostSearchRequest) -> ProviderResult[PostSearchPage]:
+        data, receipt = self._call(
+            "POST", "/social_post/search", req.to_body(), None, estimate_post_credits(req)
+        )
+        raw = self._parse(receipt, lambda: PostSearchResponse.model_validate(data))
+        page = PostSearchPage(
+            posts=[normalise_post(p, receipt.started_at) for p in raw.posts],
+            next_cursor=raw.next_cursor,
+            total_count=raw.total_count,
+        )
+        receipt.result_count = len(page.posts)
+        return ProviderResult(page, receipt)
 
     def endpoint_access(
         self, path: str | None = None, category: str | None = None

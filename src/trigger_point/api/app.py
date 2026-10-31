@@ -27,6 +27,7 @@ from trigger_point.research.service import ResearchService
 from trigger_point.store.db import Store
 from trigger_point.web.fetcher import Fetcher, FixtureFetcher, SafeHttpFetcher, default_http_client
 from trigger_point.workflow.engine import MissionNotFound, WorkflowEngine
+from trigger_point.workflow.feedback import FeedbackService
 from trigger_point.workflow.service import WorkflowService
 from trigger_point.workflow.store import WorkflowStore
 
@@ -116,6 +117,7 @@ class Services:
     cases: CaseService
     drafts: DraftService
     workflow: WorkflowService
+    feedback: FeedbackService
 
 
 def build_services(settings: Settings, deps: AppDeps | None = None) -> Services:
@@ -150,7 +152,16 @@ def build_services(settings: Settings, deps: AppDeps | None = None) -> Services:
         deps.llm or build_llm(settings),
     )
     return Services(
-        settings, deps.store, contexts, missions, discovery, research, cases, drafts, workflow
+        settings,
+        deps.store,
+        contexts,
+        missions,
+        discovery,
+        research,
+        cases,
+        drafts,
+        workflow,
+        FeedbackService(workflow),
     )
 
 

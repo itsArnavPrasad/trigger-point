@@ -3,11 +3,13 @@ import { follow, get, post, token } from './api'
 import { Accounts, Activity, Campaign, Committee, Costs, EvidenceAudit, Gate, IcpPage, Integrations, Overview, ProfilePage, Signals } from './components/Dashboards'
 import AgentMode, { Composer } from './components/Agent'
 import Home, { NeedsYou } from './components/Home'
+import ConnectPrompt from './components/Connect'
 import Icon from './components/Icon'
-import { FinancePage, LearningPage, OutreachPage, PipelinePage, StrategyPage } from './components/Pages'
+import { FinancePage, OutreachPage, PipelinePage, StrategyPage } from './components/Pages'
+import { LearningPage } from './components/Loop'
 import MeetingsPage from './components/Meetings'
 import Room, { DESKS } from './components/Room'
-import { LIVENESS_LABEL, agentLabel, flowSteps, liveness, modeLabel, permissionLabel, splitMeetings, stateLabel } from './logic'
+import { LIVENESS_LABEL, agentLabel, connectionRows, connectionsReady, flowSteps, liveness, modeLabel, permissionLabel, splitMeetings, stateLabel } from './logic'
 import type { Agent, Bootstrap, MissionView, Permission } from './types'
 
 type NavItem = [id: string, label: string, icon: string]
@@ -37,7 +39,7 @@ const SUBTITLE: Record<string, string> = {
 }
 const LABEL = Object.fromEntries([...NAV.flatMap(([, items]) => items.map(([id, label]) => [id, label])), ['integrations', 'Integrations']])
 
-function Page({ id, view, boot, focus }: { id: string; view: MissionView; boot: Bootstrap; focus?: string | null }) {
+function Page({ id, view, boot, focus, onConnect }: { id: string; view: MissionView; boot: Bootstrap; focus?: string | null; onConnect: () => void }) {
   switch (id) {
     case 'profile': return <ProfilePage v={view} />
     case 'strategy': return <StrategyPage v={view} />
@@ -52,7 +54,7 @@ function Page({ id, view, boot, focus }: { id: string; view: MissionView; boot: 
     case 'pipeline': return <PipelinePage v={view} />
     case 'learning': return <LearningPage v={view} />
     case 'finance': return <FinancePage v={view} />
-    default: return <Integrations health={boot.health} harness={boot.harness} />
+    default: return <Integrations health={boot.health} harness={boot.harness} onConnect={onConnect} />
   }
 }
 
@@ -212,6 +214,12 @@ function FloatingChat({ open, view, live, page, onClose, onOpen, onAnswer, log, 
   )
 }
 
+const WISPR_KEY = 'trigger-point-wispr-skipped'
+const DISMISS_KEY = 'trigger-point-connect-dismissed'
+type Area = 'localStorage' | 'sessionStorage'
+const readFlag = (area: Area, key: string) => { try { return window[area].getItem(key) === '1' } catch { return false } }
+const writeFlag = (area: Area, key: string, on: boolean) => { try { if (on) window[area].setItem(key, '1'); else window[area].removeItem(key) } catch { /* a per-viewer convenience only */ } }
+
 const MODE_KEY = 'trigger-point-mode'
 const savedMode = () => { try { return localStorage.getItem(MODE_KEY) === 'agent' ? 'agent' : 'dashboard' } catch { return 'dashboard' } }
 
@@ -229,6 +237,9 @@ export default function App() {
   const [mode, setModeState] = useState<'agent' | 'dashboard'>(savedMode)
   const setMode = (m: 'agent' | 'dashboard') => { setModeState(m); try { localStorage.setItem(MODE_KEY, m) } catch { /* per-viewer convenience only */ } }
   const [meetingFocus, setMeetingFocus] = useState<string | null>(null)
+  const [connectOpen, setConnectOpen] = useState(false)
+  const [wisprSkipped, setWisprSkipped] = useState(() => readFlag('localStorage', WISPR_KEY))
+  const askedToConnect = useRef(false)
   const [sidebar, setSidebar] = useState(!narrow())
   const [inspector, setInspector] = useState(false)
   const [chat, setChat] = useState('')
@@ -254,7 +265,18 @@ export default function App() {
     return follow(() => void refresh(), setConnected)
   }, [refresh])
   useEffect(() => { if (missionId) void refresh() }, [missionId, refresh])
+  useEffect(() => { const t = setInterval(() => void refresh(), 30000); return () => clearInterval(t) }, [refresh])
   useEffect(() => { log.current?.scrollTo(0, 1e6) }, [view?.messages.length, inspector])
+  useEffect(() => {  // the first look at the connectors takes a while: keep looking until it has finished
+    if (!boot || (boot.connectors_checked && !boot.connectors_checking)) return
+    const t = setInterval(() => void refresh(), 3000)
+    return () => clearInterval(t)
+  }, [boot, refresh])
+  useEffect(() => {  // once they have been checked, ask once per tab if something needed is missing
+    if (!boot?.connectors_checked || askedToConnect.current) return
+    askedToConnect.current = true
+    if (!connectionsReady(connectionRows(boot.harness, wisprSkipped)) && !readFlag('sessionStorage', DISMISS_KEY)) setConnectOpen(true)
+  }, [boot, wisprSkipped])
 
   const start = async (body: Record<string, string>) => {
     const out = await post<{ mission_id: string }>('/missions', body)
@@ -271,6 +293,9 @@ export default function App() {
     try { await post(`/missions/${view.mission.id}/messages`, { text: chat }); setChat(''); setNotice('') } catch (err) { setNotice((err as Error).message) }
   }
   const cancelMission = () => { if (view) void post(`/missions/${view.mission.id}/cancel`) }
+  const closeConnect = () => { setConnectOpen(false); writeFlag('sessionStorage', DISMISS_KEY, true) }
+  const skipWispr = (on: boolean) => { setWisprSkipped(on); writeFlag('localStorage', WISPR_KEY, on) }
+  const recheckConnectors = () => { void post('/connectors/refresh').then(() => refresh()) }
   const go = (p: string) => { setPage(p); if (narrow()) setSidebar(false); document.querySelector('.content')?.scrollTo(0, 0) }
   const openAgent = (role: string, tab: string) => view && setOpen({ role, tab })
 
@@ -289,6 +314,11 @@ export default function App() {
 
   const modals = <>
     {agent && view && boot && <AgentDashboard agent={agent} view={view} boot={boot} tab={open!.tab} setTab={t => setOpen({ role: agent.role, tab: t })} onClose={() => setOpen(null)} onAnswer={(p, d) => void answer(p, d)} />}
+    {connectOpen && boot && (() => {
+      const rows = connectionRows(boot.harness, wisprSkipped)
+      return <ConnectPrompt rows={rows} ready={connectionsReady(rows)} checking={!!boot.connectors_checking} onRecheck={recheckConnectors}
+        onSkip={() => skipWispr(true)} onUnskip={() => skipWispr(false)} onClose={closeConnect} />
+    })()}
     {creating && boot && <div className="overlay" onClick={() => setCreating(false)}><div className="modal" onClick={e => e.stopPropagation()}><NewMission onStart={start} onClose={() => setCreating(false)} mode={boot.mode} /></div></div>}
   </>
 
@@ -358,8 +388,8 @@ export default function App() {
               <div className="page">
                 <header className="page-head"><h1>{LABEL[page]}</h1><p>{SUBTITLE[page]}</p></header>
                 {view && <NeedsYou v={view} onAnswer={(p, d) => void answer(p, d)} onReview={p => openAgent(p.dashboard, p.dashboard === 'mission-director' ? 'overview' : 'work')} />}
-                {view && boot ? <Page id={page} view={view} boot={boot} focus={meetingFocus} />
-                  : boot && page === 'integrations' ? <Integrations health={boot.health} harness={boot.harness} />
+                {view && boot ? <Page id={page} view={view} boot={boot} focus={meetingFocus} onConnect={() => setConnectOpen(true)} />
+                  : boot && page === 'integrations' ? <Integrations health={boot.health} harness={boot.harness} onConnect={() => setConnectOpen(true)} />
                   : <div className="empty-state big"><Icon name="dashboard" size={32} /><p>No mission yet</p><small>Start a mission to fill this page.</small><button className="btn primary" onClick={() => setCreating(true)}>New mission</button></div>}
               </div>
             )}

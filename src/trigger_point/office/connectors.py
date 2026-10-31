@@ -38,6 +38,25 @@ class ConnectorStatus:
         self._running = False
         self._lock = threading.Lock()
 
+    @property
+    def checked(self) -> bool:
+        """True once a check has finished, so an empty answer means "not connected", not "not asked yet"."""
+        with self._lock:
+            return self._checked_at > 0
+
+    @property
+    def checking(self) -> bool:
+        with self._lock:
+            return self._running
+
+    def refresh_now(self) -> None:
+        """Asks for a fresh check at once. A check already running is left to finish."""
+        with self._lock:
+            if self._running:
+                return
+            self._running = True
+        threading.Thread(target=self._refresh, daemon=True).start()
+
     def states(self) -> dict[str, str]:
         """Returns the last result at once, and refreshes in the background when it is old."""
         with self._lock:

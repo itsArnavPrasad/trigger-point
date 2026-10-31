@@ -47,8 +47,39 @@ Suggested internal methods (match to official schemas during implementation):
 - Avoid retrying non-idempotent watcher-creation calls without an idempotency strategy.
 - Never fabricate a credit estimate; mark it estimated and reconcile against actual usage.
 
+## Proven live
+- **Access:** `GET /account/endpoints` lists 35 endpoints, 12 enabled: company identify, search, enrich and autocomplete; person search, enrich and autocomplete; job search; social post search; web search and fetch; agent query.
+- **Field limits:** `/company/identify` omits headcount and locations. `/person/search` omits first and last name, but `basic_profile.name` is returned.
+- **Countries:** alpha-3 works (`IND`).
+- **Person search:** `current` entries carry the company id, and one person can hold several.
+- **Costs:** a 5-result company search with hiring and headcount groups estimated 2.15 and charged 1.15. Identify and empty job or web searches charged 0. Person search charged 0.23 per result, matching the estimate.
+- **Identify:** an early-stage seller may have no match. Discovery continues.
+- **Funding:** `/company/search` with `fields: ["basic_info", "funding"]` returns a real, dated `funding.last_fundraise_date` for a company that raised one (confirmed live for `crustdata.com`: a seed round of $12,000,000, with its date). It is a normal premium field group (0.2 credits per result received, same tier as `headcount` and `hiring`), not a separate paid enrich step as an earlier note in this file assumed. Trigger Point now requests it whenever a plan's `signal_types` includes `recent_funding`, and `research/signals.py` turns it into a dated `recent_funding` signal, not an "as of" metric. See `docs/PROJECT_STATUS.md` for why the ICP Strategist does not always choose it correctly yet.
+
+**Coverage limit for schools.** Eleven Mumbai schools had 0 job postings at any date and no funding round (expected: schools do not raise venture funding). A `news` web search for one school returned no results. Web and news results have no date field, so a result proves no event date on its own: `start_date` narrows the search, and a date would have to come from fetching the page. This is a real data-coverage limit for this vertical, not a bug: Crustdata's dated signals (hiring, funding) are built for venture-backed and larger organisations. The mission prompt (`mission/prompt.py`) now tells the ICP Strategist to leave `signal_types` empty, rather than guess, when none plausibly applies to the stated buyer type.
+
+**Proven live, 31 October 2026** (through the adapter, `x-api-version: 2025-11-01`):
+- **Endpoint probe, identify, company search and post search all work live** on this account.
+- **The merged industry+place filters return real schools.** `locations.headquarters (.) Mumbai` AND `basic_info.industries in ["Primary and Secondary Education"]` returned Dhirubhai Ambani International School and JBCN Borivali among 5 results, charged 1.15 credits (estimate 2.15).
+- **Post search is billed per post, not per request:** 10 posts cost 5 credits (0.5 each). A people-first run must budget by result count, not calls.
+- **Precision gaps found live, to fix in discovery:**
+  - The `(.)` fuzzy place filter leaks other countries: a Dubai school appeared in the Mumbai filter results. Filter results need a post-filter country/city check on the returned record, not trust in the filter alone.
+  - Post search with `actor.location.city (.) Mumbai` + `text (.) edtech` returns recruiters, sales-hiring posts and UAE founders. Employer type is not filtered by the API on posts, so buyer-vs-seller judgement on the returned records (author title and employer) has to happen in code.
+  - `industries` on returned company records came back empty even when the filter matched on `basic_info.industries`; do not rely on it as a returned field — use the filter for matching and basic_info `description`/name for display.
+
+## Social posts (`/social_post/search`)
+Used for the `topic_engagement` signal: people at an account publicly posting about a topic.
+
+- **Billing:** 0.5 credits per post returned. An empty result and `limit: 0` cost nothing, and `limit: 0` still returns `total_count`, so a count is free. The topic and date window go in the query, so only matching posts are billed.
+- **Contract:** `filters`, `sorts: [{field, order}]`, `fields`, `limit` and `cursor` in; `{posts, next_cursor, total_count}` out. Operators are `=`, `in`, `=>` (not `>=`), `(.)` for all words and `[.]` for an exact phrase.
+- **What a post carries:** a real `date_posted`, a public `share_url`, the text, and the author's title and employer **name**. It has no employer id. Author location is coarse (state and country, no city).
+- **Reduced on purpose:** the adapter never requests names, headlines, reactors or comments. Evidence stores a role and an employer, not a person.
+- **Entity matching:** each campus of a school chain is its own company, and its name carries the place. A name that merely contains the account's is another campus or the group page, so only an exact name counts (case, punctuation and "Pvt Ltd" aside). Two different schools with the identical name in different cities cannot be told apart.
+- **Live finding:** a free count showed about 21,000 posts by Mumbai educators since the start of the year, and about 3,000 of them about AI, edtech or ChatGPT. Parents stating they are parents is thin: about 2,000 Mumbai posts, and only 46 about maths or tuition.
+- **Company search precision:** a country-only search for schools returned jewellers and hospitality firms. Adding `basic_info.industries` returned schools only, and `locations.headquarters` text narrowed it to the city. Both cost nothing extra.
+
 ## REST vs MCP
-**Status:** no call to api.crustdata.com has run yet, because `CRUSTDATA_API_KEY` is empty. The Crustdata plugin MCP is connected to Claude Code, but Trigger Point does not use it: agents have no route around the adapter.
+**Status:** live. Identify, company search, job search and person search are proven through the adapter. Trigger Point does not use the Crustdata plugin MCP: agents have no route around the adapter.
 
 Use direct REST for the demo's critical path because it gives deterministic calls, typed contracts, predictable errors, and explicit budgets. Crustdata's MCP server is useful for exploratory work and developer productivity, but an LLM-selected tool path should not be the only execution route for a judged workflow. MCP may be added as an optional adapter later.
 
@@ -63,7 +94,7 @@ Use direct REST for the demo's critical path because it gives deterministic call
 
 ## Verified API facts (from docs.crustdata.com, API version `2025-11-01`)
 
-These came from the public API reference pages, which embed the OpenAPI spec. The raw `openapi-specs/*.yaml` files redirect to a login page. **None of this has been exercised live yet:** no API key has been available.
+These came from the public API reference pages, which embed the OpenAPI spec. The raw `openapi-specs/*.yaml` files redirect to a login page. Live checks below confirm the parts Trigger Point uses.
 
 - **Base URL and headers.** Base URL is `https://api.crustdata.com`. Every request sends `authorization: Bearer <key>`, `x-api-version: 2025-11-01` and `content-type: application/json`. The version header is required; omitting it can float to a newer version.
 - **Endpoints in use** (all `POST`):
@@ -108,7 +139,7 @@ These came from the public API reference pages, which embed the OpenAPI spec. Th
 - `GET /account/endpoints` exists and is free.
 - The YALC reference adapter uses legacy endpoints and `Token` auth. Do not use it as a schema reference (see `REPO_NOTES.md`).
 
-### Job and Person search (from the docs; not yet called live)
+### Job and Person search
 - **`POST /job/search`**
   - Filter fields include `company.basic_info.company_id`, `job_details.title`/`category`, `metadata.date_added`/`date_updated`, `content.description`, and the posting-scoped `technographics.technologies.*` (values case-sensitive; discover with `/job/search/autocomplete`).
   - **Responses name the company id `company.basic_info.crustdata_company_id`.** Trigger Point reads both names.

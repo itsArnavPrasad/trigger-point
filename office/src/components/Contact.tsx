@@ -8,7 +8,7 @@ import type { ContactPoint, Stakeholder } from '../types'
 import Icon from './Icon'
 import { Tag } from './ui'
 
-const GmailMark = () => (
+export const GmailMark = () => (
   <svg width="18" height="14" viewBox="0 0 24 18" aria-hidden="true">
     <rect x="1" y="1" width="22" height="16" rx="3" fill="#fff" stroke="#dadce0" />
     <path d="M2 4.2v11.3" stroke="#4285f4" strokeWidth="2.6" strokeLinecap="round" />

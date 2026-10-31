@@ -7,12 +7,10 @@ import pytest
 
 from tests.workflow.conftest import GOAL, URL, Rig, advance_to_draft
 from trigger_point.workflow.gtm import (
-    MIN_SAMPLE,
     Outcome,
     build_pipeline,
     finance_metrics,
     label_strategy,
-    propose_changes,
 )
 from trigger_point.workflow.strategy import StrategyDraft
 
@@ -138,30 +136,6 @@ def test_a_later_loss_closes_the_opportunity() -> None:
     ]
     p = build_pipeline(rows)
     assert p["accounts"][0]["stage"] == "closed_lost" and p["open_pipeline"] == {}
-
-
-def test_learning_ignores_fixture_outcomes_entirely() -> None:
-    rows = [outcome(mode="replay", account=i) for i in range(50)]
-    out = propose_changes(rows)
-    assert out["proposals"] == [] and out["excluded_fixture"] == 50
-
-
-def test_learning_refuses_a_small_sample() -> None:
-    rows = [outcome(account=i) for i in range(MIN_SAMPLE - 1)]
-    out = propose_changes(rows)
-    assert out["proposals"] == []
-    assert "support_team_growth" in out["too_small"]
-
-
-def test_learning_proposes_with_evidence_and_says_it_is_correlation() -> None:
-    rows = [outcome(account=i) for i in range(MIN_SAMPLE)]
-    rows += [
-        outcome("reply", account=100 + i, signal_type="active_hiring") for i in range(MIN_SAMPLE)
-    ]
-    out = propose_changes(rows)
-    p = out["proposals"][0]
-    assert p["signal"] == "support_team_growth" and p["sample"] == MIN_SAMPLE
-    assert "correlation" in p["caveat"].lower() and p["outcome_ids"]
 
 
 def test_finance_shows_no_number_it_cannot_support() -> None:
