@@ -34,7 +34,8 @@ def test_replay_research_tells_an_honest_story(make_client: MakeClient) -> None:
         s["type"] == "support_team_growth" and s["status"] == "active" for s in ledger["signals"]
     )
 
-    assert "no_fresh_why_now" in by_name["Fernwood Billing"]["score"]["rejections"]
+    # No dated reason is no longer a rejection: Fernwood was people-searched, and found no buyer.
+    assert by_name["Fernwood Billing"]["score"]["rejections"] == ["no_relevant_buyer"]
     orbitly = by_name["Orbitly"]
     assert "no_relevant_buyer" in orbitly["score"]["rejections"]
     assert orbitly["people_rejected"][0]["reason"] == "current_employer_mismatch"

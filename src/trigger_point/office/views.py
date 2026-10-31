@@ -462,6 +462,9 @@ def mission_view(services: Services, office: OfficeStore, mission_id: str) -> di
         "outcomes": [o.model_dump(mode="json") for o in outcomes],
         "learning": services.feedback.view(mission_id),
         "finance": _finance(services, office, mission_id, run),
+        "activity": [
+            {k: a[k] for k in ("seq", "kind", "tool", "summary", "at")} for a in activity[-12:]
+        ],
         "messages": office.messages(mission_id),
         "run": run_row,
         "events": events[-250:],
@@ -476,7 +479,8 @@ def autopilot_summary(policy: Any) -> str:
     a = policy.availability
     days = "Mon-Fri" if a.days == [0, 1, 2, 3, 4] else f"{len(a.days)} days a week"
     return (
-        f"On · up to {policy.credit_cap} credits · {policy.meetings_wanted} meetings · "
+        f"On · {f'up to {policy.credit_cap} credits · ' if policy.credit_cap is not None else ''}"
+        f"{policy.meetings_wanted} meetings · "
         f"{days} {a.start}-{a.end} {a.timezone.rsplit('/', 1)[-1]}"
     )
 

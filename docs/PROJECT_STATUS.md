@@ -80,6 +80,11 @@ Real runs are listed in `docs/GTMO_AUDIT_REPORT.md`, section 6.
 - On real Powai schools the run stops at "no qualified account": none has a why-now signal, so nothing is written or sent.
 - UNVERIFIED against live services: Calendar event field names and Meet link shape, Gmail thread-reply behaviour, reply analysis on real replies, the Director following Autopilot instructions, and all of live mode. Slots come from the meeting window (Mon-Fri, India time) minus the busy times the Director reads from Google Calendar (`record_busy_times`); a reply is not read until the calendar was checked in the last 15 minutes. The Calendar read tool names and response shape are UNVERIFIED.
 
+## Who gets contacted (changed 2026-10-31)
+- New plans no longer reject an account for having no dated reason to act now (`require_fresh_signal=false`). It is still ranked, people-searched and contactable, and its missing reason stays visible (timing 0). Older strict plans behave as before. A message for such an account cites no signal, because none exists.
+- The company search uses only the kind of organisation and place ("CBSE schools in India"), and for school, college or university plans a result must look like an institution (name, industry or description) or it is dropped as `not_the_buyer`. This removed tutoring apps and edtech competitors from the list.
+- `CRUSTDATA_RUN_CREDIT_BUDGET` caps how many companies one run can fetch (about 0.23 credits each); with the school filter, a budget of 5 leaves few schools.
+
 ## Known gaps
 - **Why-now for schools:** job data does not cover them. See `docs/CRUSTDATA_INTEGRATION.md`.
 - **Multiple hooks:** drafts may combine two hooks, although the policy says one. The verifier does not enforce this.

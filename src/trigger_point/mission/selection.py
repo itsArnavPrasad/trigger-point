@@ -62,6 +62,46 @@ BUYER_NAME_WORDS: tuple[str, ...] = (
     "degree college",
 )
 
+# For a school-type ICP the search is semantic, so tutoring apps and edtech come back too. A result
+# must show that it is a place of learning: a buyer word in its name, an education institution
+# industry, or a description that says "school" and does not read like a product.
+INSTITUTION_SEGMENT_WORDS: tuple[str, ...] = ("school", "college", "university")
+INSTITUTION_INDUSTRIES: tuple[str, ...] = (
+    "primary and secondary",
+    "higher education",
+    "education administration",
+    "school",
+    "university",
+    "college",
+)
+PRODUCT_DESCRIPTION_WORDS: tuple[str, ...] = (
+    "platform",
+    "ai-powered",
+    "ai tutor",
+    "ai audio",
+    "edtech",
+    "e-learning",
+    "online course",
+    "mobile app",
+    "our app",
+    "coaching",
+    "tutoring",
+    "test prep",
+    "learning app",
+)
+
+
+def looks_like_institution(c: Company) -> bool:
+    name = (c.name or "").casefold()
+    if any(w in name for w in BUYER_NAME_WORDS):
+        return True
+    if any(w in i.casefold() for i in c.industries for w in INSTITUTION_INDUSTRIES):
+        return True
+    text = (c.description or "").casefold()
+    has_school = any(f" {w}" in f" {text}" for w in ("school", "schools", "vidyalaya", "college"))
+    return has_school and not any(w in text for w in PRODUCT_DESCRIPTION_WORDS)
+
+
 # Buyer segments an ICP may name. The exclusion above applies only when the ICP itself
 # names one: a schools plan says "schools", so "edtech" in a result name is a competitor,
 # but a companies plan for, say, edtech buyers must not reject "Callido Learning".
@@ -112,6 +152,7 @@ def select_accounts(
     # "schools", so "Callido Learning" in the results is a competitor, not the buyer.
     # A plan that names no segment keeps the rule off and cannot reject a real buyer by name.
     buyer_rule_on = any(w in plan.icp_query.casefold() for w in BUYER_SEGMENT_WORDS)
+    institutions_only = any(w in plan.icp_query.casefold() for w in INSTITUTION_SEGMENT_WORDS)
     for c in companies:
         domain = (c.primary_domain or "").removeprefix("www.")
         name_fold = (c.name or "").casefold()
@@ -131,15 +172,19 @@ def select_accounts(
             # live), so the returned record is re-checked against the plan's countries.
             reason = "wrong_country"
         elif (
-            buyer_rule_on
-            and name_fold
-            and any(w in name_fold for w in BUYER_EXCLUSION_WORDS)
-            or (
+            (
                 buyer_rule_on
                 and name_fold
-                and any(w in name_fold for w in SELLER_NAME_MARKERS)
-                and not any(w in name_fold for w in BUYER_NAME_WORDS)
+                and any(w in name_fold for w in BUYER_EXCLUSION_WORDS)
+                or (
+                    buyer_rule_on
+                    and name_fold
+                    and any(w in name_fold for w in SELLER_NAME_MARKERS)
+                    and not any(w in name_fold for w in BUYER_NAME_WORDS)
+                )
             )
+            or institutions_only
+            and not looks_like_institution(c)
         ):
             reason = "not_the_buyer"
         if reason:

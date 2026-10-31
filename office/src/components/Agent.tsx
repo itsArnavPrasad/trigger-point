@@ -112,7 +112,7 @@ export default function AgentMode({ v, connected, live, onDashboard, onAnswer, o
     <div className="agent-mode">
       <header className="agent-bar">
         <div className="agent-brand">
-          <span className="brand-mark"><Icon name="icp" size={15} /></span>
+          <span className="brand-mark"><img src="/art/logo.png" alt="" /></span>
           <b>Trigger Point</b><span className="x">×</span><b className="co">{company}</b>
         </div>
         <div className="mode-switch" role="tablist" aria-label="Mode">

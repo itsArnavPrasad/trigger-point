@@ -2,10 +2,10 @@
  *  Everything shown here is read from the server. The switch and the sheet only change the policy;
  *  what Autopilot may do is enforced in the backend, never here. */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { post, put } from '../api'
-import { autopilotLine, conversationLabel, lastWords } from '../logic'
-import type { Autopilot, AutopilotPolicy, Conversation } from '../types'
+import { autopilotLine, conversationLabel, lastWords, nowDoing } from '../logic'
+import type { Autopilot, AutopilotPolicy, Conversation, MissionView } from '../types'
 import Icon from './Icon'
 import { Tag } from './ui'
 
@@ -19,6 +19,8 @@ export function ModeChip({ a }: { a: Autopilot }) {
 export function AutopilotBar({ a, missionId, onChanged, compact }: { a: Autopilot; missionId: string; onChanged: () => void; compact?: boolean }) {
   const [sheet, setSheet] = useState(false)
   const [error, setError] = useState('')
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem('tp-autopilot-open') === '1' } catch { return false } })
+  const fold = () => { setOpen(!open); try { localStorage.setItem('tp-autopilot-open', open ? '0' : '1') } catch { /* private window: it still works */ } }
   const base = `/missions/${missionId}/autopilot`
   const toggle = async () => {
     setError('')
@@ -43,8 +45,12 @@ export function AutopilotBar({ a, missionId, onChanged, compact }: { a: Autopilo
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
       {!compact && a.log.length > 0 && (
+        <button className="autopilot-fold" onClick={fold} aria-expanded={open}>
+          <Icon name="chevron" size={14} />{open ? 'Hide what Autopilot did' : `What Autopilot did (${a.log.length})`}
+        </button>
+      )}
+      {!compact && open && a.log.length > 0 && (
         <div className="autopilot-feed">
-          <h4>What Autopilot did</h4>
           <ul>
             {a.log.slice(0, 6).map(e => (
               <li key={e.id} className={e.decision === 'allow' ? 'did' : 'held'}>
@@ -73,7 +79,7 @@ function Settings({ a, base, onClose, onSaved }: { a: Autopilot; base: string; o
   const save = async () => {
     setError('')
     try {
-      await put(base, { changes: { credit_cap: d.credit_cap, meetings_wanted: d.meetings_wanted, availability: d.availability } })
+      await put(base, { changes: { meetings_wanted: d.meetings_wanted, availability: d.availability } })
       onSaved()
     } catch (e) { setError((e as Error).message) }
   }
@@ -87,7 +93,6 @@ function Settings({ a, base, onClose, onSaved }: { a: Autopilot; base: string; o
             <p>Autopilot finds who to meet, writes to them, replies, and books the call. These limits are what it may do without asking you.  Times are India time, Monday to Friday, and Autopilot checks your Google Calendar so it never books over something else.</p>
           </header>
           <div className="form-grid">
-            <label>Credit cap<input type="number" min={0} value={d.credit_cap} onChange={e => setD({ ...d, credit_cap: num(e.target.value) })} /></label>
             <label>Meetings wanted<input type="number" min={1} value={d.meetings_wanted} onChange={e => setD({ ...d, meetings_wanted: num(e.target.value) })} /></label>
             <label>Meeting length (min)<input type="number" min={15} step={15} value={d.availability.minutes} onChange={e => avail({ minutes: num(e.target.value) })} /></label>
             <label>Meetings from<input type="time" value={d.availability.start} onChange={e => avail({ start: e.target.value })} /></label>
@@ -131,5 +136,29 @@ export function Conversations({ list }: { list: Conversation[] }) {
         </div>
       )}
     </section>
+  )
+}
+
+/** One line that says what is happening right now. It fades to the next thing when that changes,
+ *  and shows nothing when nothing is running. */
+export function NowLine({ v }: { v: MissionView }) {
+  const text = nowDoing(v)
+  const [shown, setShown] = useState<string | null>(text)
+  const [leaving, setLeaving] = useState<string | null>(null)
+  const last = useRef(text)
+  useEffect(() => {
+    if (text === last.current) return
+    setLeaving(last.current)
+    last.current = text
+    setShown(text)
+    const t = setTimeout(() => setLeaving(null), 350)
+    return () => clearTimeout(t)
+  }, [text])
+  if (!shown && !leaving) return null
+  return (
+    <p className="now-line" aria-live="polite" data-testid="now-line">
+      {leaving && <span key={`o-${leaving}`} className="out"><i />{leaving}</span>}
+      {shown && <span key={`i-${shown}`} className="in"><i />{shown}…</span>}
+    </p>
   )
 }

@@ -144,7 +144,7 @@ def score_account(
     rejections: list[str] = []
     if not company.primary_domain:
         rejections.append("identity_unresolved")
-    if components["timing"].known and components["timing"].value == 0:
+    if plan.require_fresh_signal and components["timing"].known and components["timing"].value == 0:
         rejections.append("no_fresh_why_now")
     if components["reachability"].known and components["reachability"].value == 0:
         rejections.append("no_relevant_buyer")

@@ -78,6 +78,9 @@ class GTMPlan(BaseModel):
     topic_keywords: list[str] = Field(default_factory=list)  # what staff would post about if open
     industries: list[str] = Field(default_factory=list)  # Crustdata industry names
     places: list[str] = Field(default_factory=list)  # words in a headquarters address
+    # True: an account with no dated reason to act now is rejected. False: it is still ranked,
+    # people-searched and contactable, and its missing reason stays visible.
+    require_fresh_signal: bool = True
     max_accounts: int = Field(ge=1, le=25)
     credit_budget: float = Field(gt=0)
     freshness_days: dict[str, int] = Field(default_factory=dict)

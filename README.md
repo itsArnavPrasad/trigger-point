@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="office/public/art/logo.png" alt="Trigger Point logo" width="120">
+</p>
+
+<p align="center">
   <img src="assets/trigger-point-value.png" alt="Trigger Point: You build the product. We handle the GTM." width="100%">
 </p>
 

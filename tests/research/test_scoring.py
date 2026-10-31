@@ -195,3 +195,17 @@ def test_rank_is_deterministic_with_tiebreak() -> None:
         ),
     )
     assert [cid for cid, _ in rank([a, b])] == [1001, 1002]
+
+
+def test_a_plan_that_does_not_require_a_fresh_signal_keeps_the_account_in_play() -> None:
+    relaxed = plan().model_copy(update={"require_fresh_signal": False})
+    s = score_account(
+        company(),
+        [sig(age=45, status="expired")],
+        tech_hits=1,
+        people=FOUND,
+        plan=relaxed,
+        signals_collected=True,
+    )
+    assert "no_fresh_why_now" not in s.rejections and s.status == "qualified"
+    assert s.components["timing"].value == 0  # the missing reason is still visible

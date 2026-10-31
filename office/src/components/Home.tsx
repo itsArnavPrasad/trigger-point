@@ -4,10 +4,10 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKey, type ReactNode } from "react"
 import { DESKS } from "./Room"
 import Icon from './Icon'
-import { JOURNEY, STAGE_ORDER, agentLabel, journey, meetingStatus, modeLabel, permissionLabel, splitMeetings, stateLabel } from '../logic'
+import { waitingSummary, JOURNEY, STAGE_ORDER, agentLabel, journey, meetingStatus, modeLabel, permissionLabel, splitMeetings, stateLabel } from '../logic'
 import type { Account, MissionView, Permission } from '../types'
 import { MeetButton, Tag } from './ui'
-import { AutopilotBar, Conversations } from './Autopilot'
+import { AutopilotBar, Conversations, NowLine } from './Autopilot'
 
 type Go = (page: string) => void
 
@@ -17,6 +17,13 @@ const NEXT: Record<string, string> = {
   research: 'Agents are finding accounts, dated buying signals and the right people.',
   engage: 'Review the evidence-backed draft, then send it to your test inbox.',
   learn: 'Log replies and meetings. Trigger Point learns only from real outcomes.',
+}
+const AUTO_NEXT: Record<string, string> = {
+  understand: 'Autopilot is reading your site and approving the profile.',
+  target: 'Autopilot is choosing who to sell to and approving the plan.',
+  research: 'Autopilot is finding accounts, signals and the right people.',
+  engage: 'Autopilot is writing, checking and sending the first messages.',
+  learn: 'Autopilot is watching for replies and booking meetings.',
 }
 const human = (s: string) => s.replaceAll('_', ' ').replace(/^./, c => c.toUpperCase())
 const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -119,6 +126,25 @@ export function NeedsYou({ v, onAnswer, onReview }: { v: MissionView; onAnswer: 
   )
 }
 
+function Waiting({ v, go }: { v: MissionView; go: Go }) {
+  const w = waitingSummary(v)
+  if (!w || v.permissions.length) return null
+  return (
+    <section className="needs-banner" data-testid="waiting">
+      <div className="needs-icon"><Icon name="alert" size={20} /></div>
+      <div className="needs-body">
+        <h3>Nothing to contact yet</h3>
+        <p className="waiting-why">{w.detail || w.title}</p>
+        <p className="waiting-why">Autopilot only writes to accounts that have a recent reason to reach out. You can widen who it looks for, or add people yourself.</p>
+        <div className="needs-row">
+          <button className="btn primary" onClick={() => go('icp')}>Change the ideal customer</button>
+          <button className="btn plain" onClick={() => go('outreach')}>Add people yourself</button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function Home({ v, connected, live, go, onAnswer, onReview, onNotes, onAgent, onNewMission, onCancel, onChanged }: {
   v: MissionView; onChanged: () => void; connected: boolean; live: string; go: Go; onNotes: (meetingId: string) => void; onAgent: () => void; onNewMission: () => void; onCancel: () => void
   onAnswer: (p: Permission, d: 'allow' | 'deny') => void; onReview: (p: Permission) => void
@@ -148,7 +174,9 @@ export default function Home({ v, connected, live, go, onAnswer, onReview, onNot
   }
   const now = v.permissions.length ? `Waiting for you: ${permissionLabel(v.permissions[0])}`
     : m.failure ? `Stopped: ${m.failure}`
+    : m.wait_reason && v.autopilot?.active && (f.qualified ?? 0) > 0 ? `Autopilot is contacting the top ${f.qualified} ranked account${f.qualified === 1 ? '' : 's'}.`
     : m.wait_reason ? m.wait_reason
+    : v.autopilot?.active && current ? AUTO_NEXT[current.id]
     : current ? NEXT[current.id] : stateLabel(m.state)
 
   const ranked = [...v.accounts].sort((a, b) => b.score.total - a.score.total)
@@ -178,6 +206,7 @@ export default function Home({ v, connected, live, go, onAnswer, onReview, onNot
           <span className={`live-chip l-${live}`}><i />{live === 'needs_you' ? 'Needs you' : live === 'working' ? 'Working' : live === 'lost' ? 'Connection lost' : live === 'ended' ? 'Finished' : 'Idle'}</span>
         </div>
         <h1>{m.goal}</h1>
+        <NowLine v={v} />
         <p className={`hero-now${m.failure ? ' bad' : ''}`}>{now}</p>
         <ol className="journey" aria-label="Mission progress">
           {steps.map((s, i) => (
@@ -198,6 +227,7 @@ export default function Home({ v, connected, live, go, onAnswer, onReview, onNot
       {v.autopilot && <AutopilotBar a={v.autopilot} missionId={v.mission.id} onChanged={onChanged} />}
 
       <NeedsYou v={v} onAnswer={onAnswer} onReview={onReview} />
+      <Waiting v={v} go={go} />
 
       {v.conversations && <Conversations list={v.conversations} />}
 

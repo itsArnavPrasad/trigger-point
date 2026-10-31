@@ -153,7 +153,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         crustdata_run_credit_budget=budget,
         crustdata_fetch_contacts=(
             modes["crustdata"] == "live"
-            and (env.get("CRUSTDATA_FETCH_CONTACTS") or "true").strip().lower()
+            and (env.get("CRUSTDATA_FETCH_CONTACTS") or "false").strip().lower()
             not in ("0", "false", "no", "off")
         ),
         outreach_mode="live" if outreach_mode == "live" else "demo",

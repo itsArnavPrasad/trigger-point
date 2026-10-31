@@ -94,3 +94,32 @@ def test_a_failed_or_cancelled_mission_is_left_alone(h: Harness) -> None:
     mid = advance_to_draft(h.rig)
     h.rig.call("cancel_mission", mission_id=mid, reason="stopped")
     assert run(h, mid) == []
+
+
+def test_an_idle_claude_code_is_told_to_continue_until_the_pipeline_moves(h: Harness) -> None:
+    from datetime import timedelta
+
+    from tests.workflow.conftest import advance_to_accounts
+    from trigger_point.office.autopilot_driver import nudge
+    from trigger_point.office.conversations import Conversations
+
+    mid = advance_to_accounts(h.rig)  # ICP approved, nothing researched: Claude Code went idle
+    h.office.set_run(mid, "idle", detail="success")
+    convs = Conversations(h.rig.services.workflow, h.rig.services.feedback, h.office)
+    sent: list[str] = []
+
+    class R:
+        def send(self, mission_id: str, text: str) -> None:
+            sent.append(text)
+
+    soon = datetime.now(UTC) + timedelta(minutes=1)
+    nudge(h.office, convs, R(), mid, soon)
+    assert len(sent) == 1 and "Continue with the next step" in sent[0]
+    nudge(h.office, convs, R(), mid, soon + timedelta(seconds=10))  # too soon to ask again
+    assert len(sent) == 1
+    for i in range(1, 8):
+        nudge(h.office, convs, R(), mid, soon + timedelta(minutes=4 * i))
+    assert len(sent) == 4  # gives up and says so rather than looping
+    assert any(
+        e["decision"] == "hold" for e in h.office.autopilot_log(mid, 50) if e["kind"] == "resume"
+    )

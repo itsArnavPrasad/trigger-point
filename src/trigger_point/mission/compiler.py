@@ -236,9 +236,14 @@ def compile_plan(draft: MissionDraft, seller_domain: str, credit_budget: float) 
         industries=_keywords(draft.industries, limit=MAX_INDUSTRIES, width=60),
         places=_keywords(draft.places, limit=MAX_PLACES, width=60),
         max_accounts=max_accounts,
+        require_fresh_signal=False,
         credit_budget=credit_budget,
         freshness_days={s: DEFAULT_FRESHNESS_DAYS[s] for s in signals},
-        assumptions=notes,
+        assumptions=[
+            *notes,
+            "Accounts with no dated reason to act now are still ranked and contacted. The missing "
+            "reason is shown, never invented.",
+        ],
         open_questions=draft.open_questions[:3],
         dimensions={
             k: v.strip() for k, v in draft.dimensions.items() if k in DIMENSIONS and v.strip()
@@ -282,6 +287,18 @@ def response_fields(plan: GTMPlan) -> list[str]:
     return fields
 
 
+_DETAIL = re.compile(r"\s+(?:with|that|which|who|using|teaching|offering|where|whose|having)\b")
+_SEGMENTS = ("school", "college", "university", "hospital", "clinic")
+
+
+def buyer_query(query: str) -> str:
+    """The search names the kind of organisation and where, nothing about what they do.
+    "CBSE schools in India with students in Classes 6 to 10 that teach maths" finds tutoring
+    apps; "CBSE schools in India" finds schools. Only cut when a buyer segment word survives."""
+    head = _DETAIL.split(query.strip(), maxsplit=1)[0].strip(" ,.")
+    return head if any(w in head.casefold() for w in _SEGMENTS) else query.strip()
+
+
 def compile_search_request(plan: GTMPlan) -> CompanySearchRequest:
     conditions: list[Condition | ConditionGroup] = []
     if plan.countries:
@@ -311,7 +328,7 @@ def compile_search_request(plan: GTMPlan) -> CompanySearchRequest:
     elif conditions:
         filters = ConditionGroup(op="and", conditions=conditions)
     probe = CompanySearchRequest(
-        search=SemanticSearch(query=plan.icp_query),
+        search=SemanticSearch(query=buyer_query(plan.icp_query)),
         filters=filters,
         fields=response_fields(plan),
         limit=1,

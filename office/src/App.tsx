@@ -117,7 +117,7 @@ function AgentDashboard({ agent, view, boot, tab, setTab, onClose, onAnswer }: {
 }
 
 function NewMission({ onStart, onClose, mode }: { onStart: (b: Record<string, string>) => Promise<void>; onClose?: () => void; mode: string }) {
-  const [f, setF] = useState({ website_url: '', goal: '', product_description: '', target_geography: '', time_horizon: '' })
+  const [f, setF] = useState({ website_url: '', goal: '', product_description: '', target_geography: '' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value })
@@ -131,11 +131,10 @@ function NewMission({ onStart, onClose, mode }: { onStart: (b: Record<string, st
       {mode === 'replay' && <p className="alert">FIXTURE DATA: only supportpilot.example has fixtures. Results are labelled.</p>}
       {mode === 'mixed' && <p className="alert">PART FIXTURE: real sites can be read, but account search has no live Crustdata key yet.</p>}
       <label>Website<input required value={f.website_url} onChange={set('website_url')} placeholder="yourcompany.com" /></label>
-      <label>Goal<input required value={f.goal} onChange={set('goal')} placeholder="Book 10 meetings with…" /></label>
-      <label>What does the product do? <small>Recommended. Needed if your site is a JavaScript app.</small><textarea rows={3} value={f.product_description} onChange={set('product_description')} /></label>
+      <label>Goal <small>Say the time frame here too, e.g. "in the coming week". Otherwise 15 days.</small><input required value={f.goal} onChange={set('goal')} placeholder="Book 10 meetings with… in the coming week" /></label>
+      <label>Extra context (optional) <small>Your website is read automatically. Paste a short description, docs or white paper excerpt only if the site says little or is a JavaScript app.</small><textarea rows={3} maxLength={2000} placeholder="Optional" value={f.product_description} onChange={set('product_description')} /></label>
       <div className="two">
         <label>Target geography<input value={f.target_geography} onChange={set('target_geography')} placeholder="India" /></label>
-        <label>Time horizon<input value={f.time_horizon} onChange={set('time_horizon')} placeholder="90 days" /></label>
       </div>
       {error && <p className="alert bad">{error}</p>}
       <div className="row">{onClose && <button type="button" className="btn plain" onClick={onClose}>Cancel</button>}<button className="btn primary" disabled={busy}>{busy ? 'Starting…' : 'Start mission'}</button></div>
@@ -246,13 +245,14 @@ export default function App() {
   const [notice, setNotice] = useState('')
   const missionRef = useRef<string | null>(null)
   missionRef.current = missionId
+  const blank = useRef(false)  // after a cancel, stay on the empty home page instead of reopening the newest mission
   const log = useRef<HTMLDivElement>(null)
 
   const refresh = useCallback(async () => {
     try {
       const b = await get<Bootstrap>('/bootstrap')
       setBoot(b)
-      const id = missionRef.current ?? b.missions[0]?.id ?? null
+      const id = missionRef.current ?? (blank.current ? null : b.missions.find(m => m.state !== 'CANCELLED')?.id) ?? null  // a cancelled mission is never reopened by default
       if (id && !missionRef.current) setMissionId(id)
       if (id) setView(await get<MissionView>(`/missions/${id}`))
     } catch (e) {
@@ -280,6 +280,7 @@ export default function App() {
 
   const start = async (body: Record<string, string>) => {
     const out = await post<{ mission_id: string }>('/missions', body)
+    blank.current = false
     setCreating(false); setMissionId(out.mission_id); setPage('home')
   }
   const answer = async (p: Permission, decision: 'allow' | 'deny') => {
@@ -292,7 +293,12 @@ export default function App() {
     if (!chat.trim() || !view) return
     try { await post(`/missions/${view.mission.id}/messages`, { text: chat }); setChat(''); setNotice('') } catch (err) { setNotice((err as Error).message) }
   }
-  const cancelMission = () => { if (view) void post(`/missions/${view.mission.id}/cancel`) }
+  const cancelMission = async () => {
+    if (!view) return
+    try { await post(`/missions/${view.mission.id}/cancel`) } catch (err) { setNotice((err as Error).message); return }
+    blank.current = true  // back to a clean home page, ready for a new mission
+    setMissionId(null); setView(null); setOpen(null); setPage('home'); setMode('dashboard'); setCreating(true)
+  }
   const closeConnect = () => { setConnectOpen(false); writeFlag('sessionStorage', DISMISS_KEY, true) }
   const skipWispr = (on: boolean) => { setWisprSkipped(on); writeFlag('localStorage', WISPR_KEY, on) }
   const recheckConnectors = () => { void post('/connectors/refresh').then(() => refresh()) }
@@ -330,7 +336,7 @@ export default function App() {
   return (
     <div className={`shell${sidebar ? '' : ' no-sidebar'}`}>
       <aside className="sidebar" aria-label="Workspace">
-        <div className="brand"><span className="brand-mark"><Icon name="icp" size={16} /></span><div><b>Trigger Point</b><small>GTM operating system</small></div></div>
+        <div className="brand"><span className="brand-mark"><img src="/art/logo.png" alt="" /></span><div><b>Trigger Point</b><small>GTM operating system</small></div></div>
         <nav>
           {NAV.map(([group, items]) => (
             <div className="nav-group" key={group ?? 'top'}>
@@ -357,7 +363,7 @@ export default function App() {
         <header className="toolbar">
           <button className="icon-btn" onClick={() => setSidebar(!sidebar)} aria-label={sidebar ? 'Hide sidebar' : 'Show sidebar'} title={sidebar ? 'Hide sidebar' : 'Show sidebar'}><Icon name="sidebar" /></button>
           {boot && boot.missions.length > 0 && (
-            <select className="mission-select" aria-label="Mission" value={missionId ?? ''} onChange={e => setMissionId(e.target.value)}>
+            <select className="mission-select" aria-label="Mission" value={missionId ?? ''} onChange={e => { blank.current = false; setMissionId(e.target.value) }}>
               {boot.missions.map(x => <option key={x.id} value={x.id}>{x.website_url} · {stateLabel(x.state)}</option>)}
             </select>
           )}
@@ -381,7 +387,7 @@ export default function App() {
                 <p className="office-caption">{view ? SUBTITLE.office : 'Eight agents wait at their desks. They only move when real work starts.'}</p>
               </div>
             ) : page === 'home' ? (
-              view ? <Home v={view} connected={connected} live={live} go={go} onAnswer={(p, d) => void answer(p, d)} onReview={p => openAgent(p.dashboard, p.dashboard === 'mission-director' ? 'overview' : 'work')} onNotes={id => { setMeetingFocus(id); go('meetings') }} onAgent={() => setMode('agent')} onNewMission={() => setCreating(true)} onCancel={cancelMission} onChanged={() => void refresh()} />
+              view ? <Home v={view} connected={connected} live={live} go={go} onAnswer={(p, d) => void answer(p, d)} onReview={p => openAgent(p.dashboard, p.dashboard === 'mission-director' ? 'overview' : 'work')} onNotes={id => { setMeetingFocus(id); go('meetings') }} onAgent={() => setMode('agent')} onNewMission={() => setCreating(true)} onCancel={() => void cancelMission()} onChanged={() => void refresh()} />
                 : boot ? <div className="welcome"><div className="welcome-copy"><span className="eyebrow">Trigger Point</span><h1>Find out who needs you, and why now.</h1><p>Give it your website and a goal. Agents read your business, pick the accounts with a real reason to talk, prove it with evidence, and draft outreach you approve.</p></div><NewMission onStart={start} mode={boot.mode} /></div>
                 : <p className="loading">Loading…</p>
             ) : (
