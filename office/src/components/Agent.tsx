@@ -33,7 +33,7 @@ function prepPoints(v: MissionView, m: Meeting): string[] {
 }
 
 
-function Composer({ inputRef, text, setText, send, sending, error, placeholder, chips, onOpenThread, threadCount }: {
+export function Composer({ inputRef, text, setText, send, sending, error, placeholder, chips, onOpenThread, threadCount }: {
   inputRef: RefObject<HTMLTextAreaElement>; text: string; setText: (t: string) => void; send: (e?: FormEvent) => void
   sending: boolean; error: string; placeholder: string; chips: boolean; onOpenThread?: () => void; threadCount?: number
 }) {
@@ -55,9 +55,9 @@ function Composer({ inputRef, text, setText, send, sending, error, placeholder, 
   )
 }
 
-export default function AgentMode({ v, connected, live, onDashboard, onAnswer, onNewMission }: {
+export default function AgentMode({ v, connected, live, onDashboard, onAnswer }: {
   v: MissionView; connected: boolean; live: string; onDashboard: () => void
-  onAnswer: (p: Permission, d: 'allow' | 'deny') => void; onNewMission: () => void
+  onAnswer: (p: Permission, d: 'allow' | 'deny') => void
 }) {
   const today = new Date().toISOString().slice(0, 10)
   const company = v.profile?.company ?? v.mission.website_url
@@ -121,7 +121,6 @@ export default function AgentMode({ v, connected, live, onDashboard, onAnswer, o
         <div className="agent-status">
           {v.mission.mode !== 'live' && <span className={`mode-chip m-${v.mission.mode}`}>{modeLabel(v.mission.mode)}</span>}
           <span className={`live-chip l-${live}`}><i />{!connected ? 'Connection lost' : live === 'working' ? 'Working' : live === 'needs_you' ? 'Needs you' : 'Idle'}</span>
-          <button className="icon-btn" onClick={onNewMission} aria-label="New mission" title="New mission"><Icon name="plus" /></button>
         </div>
       </header>
 

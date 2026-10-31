@@ -1,7 +1,7 @@
 /** The dashboard: goal, where the mission is, what research found, meetings, and what has been learned.
  *  Every number is read from the mission view. Missing data shows as an empty state with a next step. */
 
-import type { ReactNode } from "react"
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKey, type ReactNode } from "react"
 import { DESKS } from "./Room"
 import Icon from './Icon'
 import { JOURNEY, STAGE_ORDER, agentLabel, journey, meetingStatus, modeLabel, permissionLabel, splitMeetings, stateLabel } from '../logic'
@@ -48,6 +48,56 @@ function statusTag(a: Account) {
   return <Tag tone={s === 'qualified' ? 'good' : s === 'rejected' ? 'bad' : 'warn'}>{s === 'qualified' ? `Qualified${a.score.tier ? ` · Tier ${a.score.tier}` : ''}` : human(s)}</Tag>
 }
 
+/** Mission actions live behind a three-dots menu on the first card. Cancelling asks once, because it cannot be undone. */
+function HeroMenu({ canCancel, onNew, onCancel }: { canCancel: boolean; onNew: () => void; onCancel: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [confirm, setConfirm] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  const close = () => { setOpen(false); setConfirm(false) }
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) close() }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    document.addEventListener('mousedown', onDown); window.addEventListener('keydown', onKey)
+    box.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+    return () => { document.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey) }
+  }, [open])
+
+  const arrows = (e: ReactKey) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    const items = [...(box.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
+    const at = items.indexOf(document.activeElement as HTMLElement)
+    items[(at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus()
+    e.preventDefault()
+  }
+
+  return (
+    <div className="hero-menu" ref={box}>
+      <button className={`menu-btn${open ? ' on' : ''}`} aria-haspopup="menu" aria-expanded={open} aria-label="Mission actions" title="Mission actions" onClick={() => (open ? close() : setOpen(true))}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9" /><circle cx="12" cy="12" r="1.9" /><circle cx="19" cy="12" r="1.9" /></svg>
+      </button>
+      {open && (
+        <div className="menu" role="menu" onKeyDown={arrows}>
+          {confirm ? (
+            <div className="menu-confirm">
+              <b>Cancel this mission?</b>
+              <p>Agents stop where they are. A cancelled mission cannot be resumed.</p>
+              <div className="row">
+                <button className="btn plain small" onClick={close}>Keep running</button>
+                <button className="btn solid-bad small" onClick={() => { close(); onCancel() }}>Cancel mission</button>
+              </div>
+            </div>
+          ) : <>
+            <button role="menuitem" onClick={() => { close(); onNew() }}><Icon name="plus" size={16} />New mission</button>
+            {canCancel && <button role="menuitem" className="danger" onClick={() => setConfirm(true)}><Icon name="alert" size={16} />Cancel mission…</button>}
+          </>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function NeedsYou({ v, onAnswer, onReview }: { v: MissionView; onAnswer: (p: Permission, d: 'allow' | 'deny') => void; onReview: (p: Permission) => void }) {
   if (!v.permissions.length) return null
   return (
@@ -68,8 +118,8 @@ export function NeedsYou({ v, onAnswer, onReview }: { v: MissionView; onAnswer: 
   )
 }
 
-export default function Home({ v, connected, live, go, onAnswer, onReview, onNotes, onAgent }: {
-  v: MissionView; connected: boolean; live: string; go: Go; onNotes: (meetingId: string) => void; onAgent: () => void
+export default function Home({ v, connected, live, go, onAnswer, onReview, onNotes, onAgent, onNewMission, onCancel }: {
+  v: MissionView; connected: boolean; live: string; go: Go; onNotes: (meetingId: string) => void; onAgent: () => void; onNewMission: () => void; onCancel: () => void
   onAnswer: (p: Permission, d: 'allow' | 'deny') => void; onReview: (p: Permission) => void
 }) {
   const m = v.mission
@@ -120,6 +170,7 @@ export default function Home({ v, connected, live, go, onAnswer, onReview, onNot
   return (
     <div className="home">
       <section className="hero">
+        <HeroMenu canCancel={!['COMPLETE', 'FAILED', 'CANCELLED'].includes(m.state)} onNew={onNewMission} onCancel={onCancel} />
         <div className="hero-top">
           <span className="eyebrow">Mission · {m.website_url}</span>
           <span className={`mode-chip m-${m.mode}`}>{modeLabel(m.mode)}</span>
