@@ -132,6 +132,7 @@ def build_services(settings: Settings, deps: AppDeps | None = None) -> Services:
         deps.crustdata or crustdata_factory(settings),
         settings.crustdata_run_credit_budget,
         reference_date=lambda: research_reference_date(settings),
+        fetch_contacts=settings.crustdata_fetch_contacts,
     )
     cases = CaseService(deps.store)
     drafts = DraftService(deps.store, cases, deps.llm or build_llm(settings))

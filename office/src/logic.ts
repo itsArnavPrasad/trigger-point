@@ -1,6 +1,6 @@
 /** The UI's rules, kept pure so they can be tested. Nothing here invents state. */
 
-import type { Agent, Mission, MissionView, Permission } from './types'
+import type { Account, Agent, Mission, MissionView, Permission, Score } from './types'
 
 export const FLOW = ['RECEIVED', 'PROFILE_REVIEW', 'ICP_READY', 'ACCOUNTS_FOUND', 'SIGNALS_RESEARCHED', 'PEOPLE_MAPPED', 'EVIDENCE_VERIFIED', 'CAMPAIGN_DRAFTED', 'USER_APPROVAL', 'COMPLETE']
 const TERMINAL = ['COMPLETE', 'FAILED', 'CANCELLED']
@@ -20,7 +20,7 @@ const TOOL_LABEL: Record<string, string> = {
   approve_icp_plan: 'Approve the ICP and its credit estimate',
   discover_accounts: 'Search for accounts (spends Crustdata credits)',
   research_account_signals: 'Research buying signals (spends Crustdata credits)',
-  map_buying_committee: 'Find the buying committee (spends Crustdata credits)',
+  map_buying_committee: 'Find the buying committee and look up their email and phone (spends Crustdata credits)',
   approve_campaign_draft: 'Approve this exact draft (nothing is sent)',
 }
 
@@ -85,6 +85,58 @@ export function meetingStatus(m: { held_on: string; status?: string | null; note
   return m.status === 'held' || m.notes?.trim() ? 'held' : 'needs_update'
 }
 
+
+export const SCORE_PARTS = ['fit', 'timing', 'reachability', 'evidence_quality'] as const
+export const SCORE_LABEL: Record<string, string> = { fit: 'Fit', timing: 'Timing', reachability: 'Reach', evidence_quality: 'Evidence' }
+export const SCORE_HELP: Record<string, string> = {
+  fit: 'How closely it matches your ideal customer',
+  timing: 'Fresh reasons to talk to them now',
+  reachability: 'A verified person you can contact',
+  evidence_quality: 'How well sourced the facts are',
+}
+const GOOD: Record<string, string> = { fit: 'a good fit', timing: 'fresh signals', reachability: 'a verified contact', evidence_quality: 'solid evidence' }
+const WEAK: Record<string, string> = { fit: 'a weak fit', timing: 'no fresh signal', reachability: 'no verified contact', evidence_quality: 'thin evidence' }
+const UNKNOWN: Record<string, string> = { fit: 'fit unknown', timing: 'timing unknown', reachability: 'contact unknown', evidence_quality: 'evidence unknown' }
+export const REJECTION: Record<string, string> = {
+  no_relevant_buyer: 'no relevant decision-maker found there',
+  no_fresh_why_now: 'no fresh reason to talk now',
+  identity_unresolved: 'could not confirm which company this is',
+}
+const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs[0])
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
+
+/** One plain sentence on why an account ranks where it does. Built from the stored components, never from a model. */
+export function scoreLine(s: Pick<Score, 'status' | 'rejections' | 'components'>): string {
+  if (s.rejections.length) return `Rejected: ${list(s.rejections.map(r => REJECTION[r] ?? r.replaceAll('_', ' ')))}.`
+  const strong: string[] = [], weak: string[] = [], unknown: string[] = []
+  for (const k of SCORE_PARTS) {
+    const c = s.components[k]
+    if (!c || !c.known || c.value === null) unknown.push(UNKNOWN[k])
+    else if (c.value >= 70) strong.push(GOOD[k])
+    else if (c.value < 50) weak.push(WEAK[k])
+  }
+  const gaps = [...weak, ...unknown]
+  if (s.status === 'insufficient_evidence') return `Not enough evidence yet${gaps.length ? `: ${list(gaps)}` : ''}.`
+  if (strong.length === SCORE_PARTS.length) return `Strong on every measure: ${list(strong)}.`
+  const parts = [...(strong.length ? [cap(list(strong))] : []), ...(gaps.length ? [strong.length ? `but ${list(gaps)}` : cap(list(gaps))] : [])]
+  return parts.length ? `${parts.join(', ')}.` : 'Middling on every measure.'
+}
+
+/** Why this account sits below the one above it: the measure where it falls furthest short. Null when either is rejected. */
+export function rankNote(prev: Pick<Account, 'name' | 'score'> | undefined, cur: Pick<Account, 'score'>): string | null {
+  if (!prev || prev.score.rejections.length || cur.score.rejections.length) return null
+  let worst: { k: string; d: number } | null = null
+  for (const k of SCORE_PARTS) {
+    const a = prev.score.components[k], b = cur.score.components[k]
+    if (!a?.known || !b?.known || a.value === null || b.value === null) continue
+    const d = a.value - b.value
+    if (d > 0 && (!worst || d > worst.d)) worst = { k, d }
+  }
+  const above = prev.name ?? 'the account above'
+  if (!worst) return `Level with ${above}.`
+  return `${worst.d >= 25 ? 'Well behind' : worst.d >= 8 ? 'Behind' : 'Slightly behind'} ${above} on ${SCORE_LABEL[worst.k].toLowerCase()}.`
+}
+
 /** What the office can vouch for. A stopped stream means Connection lost, never "still running". */
 export function agentLabel(a: Pick<Agent, 'status'>, connected: boolean): string {
   if (!connected) return a.status === 'running' ? 'Connection lost' : statusLabel(a.status)
@@ -104,6 +156,34 @@ export function liveness(v: (Pick<MissionView, 'mission' | 'permissions' | 'task
 }
 
 export const LIVENESS_LABEL: Record<Liveness, string> = { lost: 'Connection lost', needs_you: 'Needs you', working: 'Working', idle: 'Idle', ended: 'Finished' }
+
+/** Contact buttons exist only for values that pass these checks, so nothing odd ever becomes a link. */
+export const isEmail = (v: string) => /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/.test(v)
+export const isPhone = (v: string) => /^\+?[0-9][0-9 ()\-.]{5,19}$/.test(v)
+/** A blank Gmail compose window addressed to them. The person writes and sends it; nothing is sent from here. */
+export const gmailCompose = (email: string) => (isEmail(email) ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}` : undefined)
+export const telHref = (phone: string) => (isPhone(phone) ? `tel:${phone.replace(/[^\d+]/g, '')}` : undefined)
+
+/** The professional-network link, labelled LinkedIn when the host says so and a plain Profile otherwise. */
+export function profileLink(url?: string | null): { href: string; label: 'LinkedIn' | 'Profile' } | undefined {
+  const href = safeHref(url)
+  if (!href) return undefined
+  try { return { href, label: new URL(href).hostname.toLowerCase().includes('linkedin') ? 'LinkedIn' : 'Profile' } } catch { return undefined }
+}
+
+/** The provider's deliverability word, shown as given apart from the two cases that are unambiguous. */
+export function contactStatus(status?: string | null): { text: string; tone: string } | undefined {
+  const t = status?.trim().toLowerCase()
+  if (!t) return undefined
+  if (['valid', 'verified', 'deliverable'].includes(t)) return { text: 'Verified', tone: 'good' }
+  if (['invalid', 'undeliverable', 'bounced'].includes(t)) return { text: 'Invalid', tone: 'bad' }
+  return { text: t.replaceAll('_', ' ').replace(/^./, c => c.toUpperCase()), tone: 'warn' }
+}
+
+export function initials(name?: string | null): string {
+  const parts = (name ?? '').trim().split(/\s+/).filter(Boolean)
+  return parts.length ? (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase() : '?'
+}
 
 /** Only http(s) becomes a link, whatever a source says. */
 export function safeHref(url?: string | null): string | undefined {

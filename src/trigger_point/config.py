@@ -82,6 +82,7 @@ class Settings:
     crustdata_api_key: SecretStr | None = field(repr=False)
     crustdata_api_version: str = "2025-11-01"
     crustdata_run_credit_budget: float = 5.0
+    crustdata_fetch_contacts: bool = False  # buy email and phone for the buyers found (live only)
     enable_email_send: bool = False
     enable_linkedin_send: bool = False
     test_recipients: tuple[str, ...] = ()  # the only inboxes a test send may reach
@@ -140,6 +141,11 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         crustdata_api_key=crustdata_key,
         crustdata_api_version=env.get("CRUSTDATA_API_VERSION") or "2025-11-01",
         crustdata_run_credit_budget=budget,
+        crustdata_fetch_contacts=(
+            modes["crustdata"] == "live"
+            and (env.get("CRUSTDATA_FETCH_CONTACTS") or "true").strip().lower()
+            not in ("0", "false", "no", "off")
+        ),
         test_recipients=tuple(
             r.strip().casefold()
             for r in (env.get("TRIGGER_POINT_TEST_RECIPIENTS") or "").split(",")

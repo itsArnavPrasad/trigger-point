@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentLabel, elapsed, flowSteps, journey, liveness, meetingStatus, modeLabel, permissionLabel, safeHref, splitMeetings, tokenFromHash } from './logic'
+import { agentLabel, elapsed, flowSteps, journey, liveness, contactStatus, gmailCompose, initials, meetingStatus, modeLabel, profileLink, telHref, rankNote, scoreLine, permissionLabel, safeHref, splitMeetings, tokenFromHash } from './logic'
 import type { MissionView } from './types'
 
 const view = (over: Partial<MissionView> & { state?: string } = {}) => ({
@@ -76,6 +76,69 @@ describe('meeting status', () => {
   it('separates today from upcoming', () => {
     expect(meetingStatus({ held_on: today }, today)).toBe('today')
     expect(meetingStatus({ held_on: '2026-11-02' }, today)).toBe('upcoming')
+  })
+})
+
+describe('score line', () => {
+  const comp = (fit: number | null, timing: number | null, reach: number | null, ev: number | null) => ({
+    fit: { value: fit, known: fit !== null, detail: '' }, timing: { value: timing, known: timing !== null, detail: '' },
+    reachability: { value: reach, known: reach !== null, detail: '' }, evidence_quality: { value: ev, known: ev !== null, detail: '' },
+  })
+  const line = (c: ReturnType<typeof comp>, status = 'qualified', rejections: string[] = []) => scoreLine({ status, rejections, components: c })
+  it('names the strengths and the one gap', () => {
+    expect(line(comp(100, 34, 100, 60))).toBe('A good fit and a verified contact, but no fresh signal.')
+  })
+  it('says so when everything is strong', () => {
+    expect(line(comp(100, 95, 100, 85))).toBe('Strong on every measure: a good fit, fresh signals, a verified contact and solid evidence.')
+  })
+  it('explains a rejection in plain words, whatever the score', () => {
+    expect(line(comp(100, 80, 0, 70), 'rejected', ['no_relevant_buyer'])).toBe('Rejected: no relevant decision-maker found there.')
+    expect(line(comp(100, 0, null, 0), 'rejected', ['no_fresh_why_now', 'weird_code'])).toBe('Rejected: no fresh reason to talk now and weird code.')
+  })
+  it('never calls unknown data weak or strong', () => {
+    expect(line(comp(100, null, 60, 60), 'insufficient_evidence')).toBe('Not enough evidence yet: timing unknown.')
+  })
+  it('does not invent a verdict for middling scores', () => expect(line(comp(60, 60, 60, 60))).toBe('Middling on every measure.'))
+})
+
+describe('rank note', () => {
+  const acct = (name: string, c: number[], rejections: string[] = []) => ({
+    name, score: { status: 'qualified', rejections, components: Object.fromEntries(['fit', 'timing', 'reachability', 'evidence_quality'].map((k, i) => [k, { value: c[i], known: true, detail: '' }])) },
+  }) as never
+  it('names the measure where it falls furthest behind the account above', () => {
+    expect(rankNote(acct('Bayview', [100, 95, 100, 85]), acct('Lakeside', [100, 90, 100, 80]))).toBe('Slightly behind Bayview on timing.')
+    expect(rankNote(acct('Sunrise', [100, 95, 100, 85]), acct('Brightlane', [100, 34, 100, 70]))).toBe('Well behind Sunrise on timing.')
+  })
+  it('says nothing for the first account or when a rejection already explains it', () => {
+    expect(rankNote(undefined, acct('A', [100, 100, 100, 100]))).toBeNull()
+    expect(rankNote(acct('A', [100, 100, 100, 100]), acct('B', [100, 0, 0, 0], ['no_relevant_buyer']))).toBeNull()
+  })
+})
+
+describe('contact buttons', () => {
+  it('builds a Gmail compose link only from a valid address, encoded', () => {
+    expect(gmailCompose('asha@school.example')).toBe('https://mail.google.com/mail/?view=cm&fs=1&to=asha%40school.example')
+    expect(gmailCompose('a+b@school.example')).toContain('a%2Bb%40school.example')
+    for (const bad of ['', 'nope', 'a@b', 'a b@c.example', 'x@y.example&bcc=boss@z.example', '<x>@y.example', 'a@b.example,c@d.example']) expect(gmailCompose(bad)).toBeUndefined()
+  })
+  it('builds a tel link only from a plausible number, digits and plus only', () => {
+    expect(telHref('+91 22 5550 0101')).toBe('tel:+912255500101')
+    for (const bad of ['', 'call me', '12', 'javascript:alert(1)', '+91 22 5550 0101; rm']) expect(telHref(bad)).toBeUndefined()
+  })
+  it('calls a link LinkedIn only when the host says so, and never links a non-http(s) URL', () => {
+    expect(profileLink('https://www.linkedin.com/in/someone')?.label).toBe('LinkedIn')
+    expect(profileLink('https://profiles.example/8001')?.label).toBe('Profile')
+    expect(profileLink('javascript:alert(1)')).toBeUndefined()
+    expect(profileLink(null)).toBeUndefined()
+  })
+  it('shows the provider status as given, unless it clearly means valid or invalid', () => {
+    expect(contactStatus('valid')).toEqual({ text: 'Verified', tone: 'good' })
+    expect(contactStatus('Catch_All')).toEqual({ text: 'Catch all', tone: 'warn' })
+    expect(contactStatus(null)).toBeUndefined()
+  })
+  it('makes two-letter initials', () => {
+    expect(initials('Asha Kumar Example')).toBe('AE')
+    expect(initials(null)).toBe('?')
   })
 })
 

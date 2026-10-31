@@ -154,6 +154,10 @@ def _stakeholders(ar: AccountResearch, personas: list[str]) -> list[dict[str, An
                 "reason": m.reason,
                 "why": m.persona_why,
                 "profile_url": p.profile_url,
+                "in_role_since": p.current_role_start,
+                "updated_at": p.provider_updated_at,
+                # Shown to the user only. Never copied into evidence, drafts or event text.
+                "contact": [c.model_dump(mode="json") for c in p.contact],
             }
         )
     found = {m["title"] for m in people}

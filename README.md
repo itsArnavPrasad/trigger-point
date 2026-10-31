@@ -56,7 +56,8 @@ Edit `.env`. API keys always come from `.env`. Modes can be overridden from the 
 | `CRUSTDATA_MODE` | Real accounts, signals and people | `live` needs `CRUSTDATA_API_KEY` |
 | `CRUSTDATA_API_KEY` | Crustdata | From your Crustdata account |
 | `CRUSTDATA_API_VERSION` | Crustdata | Keep the value in `.env.example` |
-| `CRUSTDATA_RUN_CREDIT_BUDGET` | Spend cap per run | Default 5. Fails closed |
+| `CRUSTDATA_RUN_CREDIT_BUDGET` | Spend cap per run | Default 5. Fails closed. Raise it to cover contact lookups |
+| `CRUSTDATA_FETCH_CONTACTS` | Buy email and phone for the buyers found | Live mode only, default `true`. Needs a key with contact access |
 | `DATABASE_URL` | Storage | Default `sqlite:///./trigger_point.db` |
 | `TRIGGER_POINT_TEST_RECIPIENTS` | Test email and invites | Comma-separated. Empty blocks everything |
 | `ENABLE_EMAIL_SEND`, `ENABLE_LINKEDIN_SEND` | Safety switches | Must stay `false`. `true` stops startup |

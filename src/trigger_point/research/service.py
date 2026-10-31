@@ -20,13 +20,21 @@ from trigger_point.mission.service import CallRecord, DiscoveryRun
 from trigger_point.models.context import Mode
 from trigger_point.models.evidence import Evidence, evidence_id
 from trigger_point.providers.crustdata.client import (
+    CONTACT_CREDITS_PER_PERSON,
     JOB_CREDITS_PER_RESULT,
     PERSON_CREDITS_PER_RESULT,
     CreditBudget,
     CrustdataClient,
 )
 from trigger_point.providers.crustdata.errors import CrustdataError
-from trigger_point.providers.crustdata.models import Company, JobPosting, PersonRecord
+from trigger_point.providers.crustdata.models import (
+    MAX_CONTACT_BATCH,
+    Company,
+    ContactEnrichRequest,
+    ContactPoint,
+    JobPosting,
+    PersonRecord,
+)
 from trigger_point.research.jobs import compile_job_request
 from trigger_point.research.people import (
     PersonaMatch,
@@ -118,9 +126,11 @@ class ResearchService:
         budget: float,
         reference_date: Callable[[], date],
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        fetch_contacts: bool = False,
     ) -> None:
         self._store, self._factory, self._budget = store, client_factory, budget
         self._reference_date, self._clock = reference_date, clock
+        self._fetch_contacts = fetch_contacts
 
     def get(self, research_id: str) -> ResearchRun:
         run = self._store.get_research(research_id)
@@ -300,6 +310,68 @@ class ResearchService:
         order = rank([(cid, r.score) for cid, r in results.items()])
         run.accounts = [results[cid] for cid, _ in order]
 
+    def _attach_contacts(
+        self,
+        run: ResearchRun,
+        client: CrustdataClient,
+        budget: CreditBudget,
+        results: dict[int, AccountResearch],
+    ) -> None:
+        """Email and phone for the buyers we found, best match per account first, within the credit
+        budget. Optional: any failure leaves people without contact details and says why in the notes."""
+        asked: list[tuple[int, str]] = []
+        seen: set[int] = set()
+        for matches in (
+            [[ar.best_person] for ar in results.values()],
+            [ar.other_matches for ar in results.values()],
+        ):
+            for group in matches:
+                for m in group:
+                    pid = m.person.provider_person_id if m else 0
+                    if m and m.person.profile_url and pid not in seen:
+                        seen.add(pid)
+                        asked.append((pid, m.person.profile_url))
+        if not asked:
+            return
+        found: dict[int, list[ContactPoint]] = {}
+        done = 0
+        try:
+            for start in range(0, len(asked), MAX_CONTACT_BATCH):
+                batch = asked[start : start + MAX_CONTACT_BATCH]
+                can = _affordable(budget, CONTACT_CREDITS_PER_PERSON, len(batch))
+                if can < 1:
+                    run.notes.append(
+                        f"contact lookup stopped: credit budget exhausted, "
+                        f"{len(asked) - done} people left without email or phone"
+                    )
+                    break
+                found.update(
+                    client.enrich_contacts(ContactEnrichRequest(targets=tuple(batch[:can]))).data
+                )
+                done += min(can, len(batch))
+        except CrustdataError as exc:
+            run.notes.append(
+                "contact lookup unavailable: your Crustdata key may not include contact access"
+                if exc.kind == "permission"
+                else f"contact lookup skipped: {exc.kind}"
+            )
+        if found:
+            run.notes.append(f"contact details found for {len(found)} of {len(asked)} people")
+
+        def with_contact(m: PersonaMatch) -> PersonaMatch:
+            points = found.get(m.person.provider_person_id)
+            if not points:
+                return m
+            return m.model_copy(update={"person": m.person.model_copy(update={"contact": points})})
+
+        for cid, ar in list(results.items()):
+            results[cid] = ar.model_copy(
+                update={
+                    "best_person": with_contact(ar.best_person) if ar.best_person else None,
+                    "other_matches": [with_contact(m) for m in ar.other_matches],
+                }
+            )
+
     def _map_people(
         self, run: ResearchRun, client: CrustdataClient, budget: CreditBudget, mission: Mission
     ) -> None:
@@ -350,5 +422,7 @@ class ResearchService:
                     "score": score,
                 }
             )
+        if self._fetch_contacts and people_searched:
+            self._attach_contacts(run, client, budget, results)
         order = rank([(cid, r.score) for cid, r in results.items()])
         run.accounts = [results[cid] for cid, _ in order]

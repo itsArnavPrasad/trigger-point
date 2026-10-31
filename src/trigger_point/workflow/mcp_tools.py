@@ -122,7 +122,9 @@ def register_workflow_tools(server: MCPServer, wf: WorkflowService) -> None:  # 
     @server.tool(annotations=WRITES)
     def map_buying_committee(mission_id: str) -> dict[str, Any]:
         """HUMAN APPROVAL REQUIRED (spends Crustdata credits): find buyers at the top accounts,
-        verify their current employer and rescore. Never fetches contact data."""
+        verify their current employer and rescore. In live mode it also looks up their business
+        email and phone (about 3 credits per person matched). Those details are for the user to see;
+        they never enter evidence, drafts or prompts."""
         return wf.map_buying_committee(mission_id)
 
     @server.tool(annotations=WRITES)

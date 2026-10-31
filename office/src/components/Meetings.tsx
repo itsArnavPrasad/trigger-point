@@ -31,7 +31,7 @@ export function Brief({ v, m, today, bare }: { v: MissionView; m: Meeting; today
   const history = [
     ...v.outcomes.filter(o => same(o.account_name, m.account_name) && !o.note?.startsWith('Meeting: ')).map(o => ({ date: o.occurred_on, text: `${human(o.kind)}${o.note ? `: “${o.note}”` : ''}` })),
     ...v.meetings.filter(x => x.id !== m.id && same(x.account_name, m.account_name) && x.held_on <= today).map(x => ({ date: x.held_on, text: `${x.title}${x.notes ? `: “${x.notes}”` : ''}` })),
-    ...v.outreach.filter(o => same(o.target_name, target?.name)).map(o => ({ date: '', text: `Message “${o.subject}” · ${o.status}${o.test_sends?.length ? ', sent to test inbox' : ', not sent'}` })),
+    ...v.outreach.filter(o => same(o.target_name, target?.name)).map(o => ({ date: '', text: `“${o.subject}” · ${o.status}${o.test_sends?.length ? ', sent to test inbox' : ', not sent'}` })),
   ].sort((a, b) => b.date.localeCompare(a.date))
   const strategy = v.strategy[v.strategy.length - 1]?.body
   const icp = v.icp[v.icp.length - 1]
@@ -104,7 +104,7 @@ export function Brief({ v, m, today, bare }: { v: MissionView; m: Meeting; today
         </>}
 
         <h4>History</h4>
-        {history.length ? <ul className="history">{history.map((h, i) => <li key={i}>{h.date && <time>{h.date}</time>}<span>{h.text}</span></li>)}</ul> : <p className="muted">First contact. Nothing logged before this meeting.</p>}
+        {history.length ? <ul className="history">{history.map((h, i) => <li key={i}><time>{h.date || 'Message'}</time><span>{h.text}</span></li>)}</ul> : <p className="muted">First contact. Nothing logged before this meeting.</p>}
 
         {(strategy || audience) && <>
           <h4>Your angle</h4>

@@ -2,8 +2,10 @@
 
 import { useState } from 'react'
 import { post } from '../api'
-import { elapsed, statusLabel } from '../logic'
+import { REJECTION, SCORE_HELP, SCORE_LABEL, SCORE_PARTS, elapsed, initials, rankNote, scoreLine, statusLabel } from '../logic'
 import type { Account, Agent, Claim, Harness, Health, MissionView } from '../types'
+import PersonActions from './Contact'
+import Icon from './Icon'
 import { Card, Empty, EvidenceTable, Source, Stat, Tag } from './ui'
 
 const FIELD_LABEL: Record<string, string> = {
@@ -126,11 +128,8 @@ export function Accounts({ v }: { v: MissionView }) {
           <Stat label="Rejected" value={f.rejected} tone="bad" /><Stat label="Awaiting research" value={f.awaiting} />
         </div>
       </Card>
-      <Card wide title="Accounts" hint="Ranked by deterministic score">
-        <table>
-          <thead><tr><th>Account</th><th>Score</th><th>Status</th><th>Size</th><th>Where</th><th>Fit</th><th>Timing</th><th>Reach</th><th>Evidence</th></tr></thead>
-          <tbody>{v.accounts.map(a => <AccountRow key={a.id} a={a} />)}</tbody>
-        </table>
+      <Card wide title="Accounts" hint="Why each one ranks where it does. Use the info button for the exact scores.">
+        <AccountRows accounts={v.accounts} />
         {v.accounts.length === 0 && <Empty>Accounts are scored once research runs.</Empty>}
       </Card>
       <Card title="Removed before research">
@@ -144,19 +143,59 @@ export function Accounts({ v }: { v: MissionView }) {
   )
 }
 
-const comp = (a: Account, k: string) => {
-  const c = a.score.components[k]
-  return c?.known ? Math.round(c.value ?? 0) : '?'
+function AccountRows({ accounts }: { accounts: Account[] }) {
+  const [open, setOpen] = useState<number | null>(null)
+  return (
+    <ul className="acct-rows">
+      {accounts.map((a, i) => {
+        const sc = a.score
+        const shown = open === a.id
+        const active = a.signals.filter(x => x.status === 'active').length
+        const note = rankNote(accounts[i - 1], a)
+        const meta = [a.domain, a.size ? `${a.size} staff` : null, a.country, active ? `${active} active signal${active === 1 ? '' : 's'}` : null].filter(Boolean).join(' · ')
+        return (
+          <li key={a.id}>
+            <div className="acct-line">
+              <span className="rank">{i + 1}</span>
+              <div className="acct-body">
+                <div className="acct-head">
+                  <b>{a.name ?? 'Unnamed'}</b>
+                  <Tag tone={sc.status === 'qualified' ? 'good' : sc.status === 'rejected' ? 'bad' : 'warn'}>
+                    {sc.status === 'qualified' ? `Qualified${sc.tier ? ` · Tier ${sc.tier}` : ''}` : sc.status === 'rejected' ? 'Rejected' : 'Needs evidence'}
+                  </Tag>
+                </div>
+                <small>{meta}</small>
+                <p className="acct-why">{scoreLine(sc)}</p>
+                {note && <small className="acct-rank">{note}</small>}
+              </div>
+              <button className={`icon-btn${shown ? ' on' : ''}`} onClick={() => setOpen(shown ? null : a.id)} aria-expanded={shown} aria-controls={`score-${a.id}`}
+                aria-label={`Exact scores for ${a.name ?? 'this account'}`} title="Exact scores"><Icon name="info" /></button>
+            </div>
+            <div className={`reveal${shown ? ' open' : ''}`} id={`score-${a.id}`} aria-hidden={!shown}>
+              <div>
+                <div className="score-detail">
+                  <div className="score-total"><b>{sc.total.toFixed(1)}</b><span>out of 100 · {sc.version}{sc.coverage < 1 ? ` · ${Math.round(sc.coverage * 100)}% of the data is known` : ''}</span></div>
+                  {sc.rejections.length > 0 && <p className="alert bad">Rejected by a hard rule, whatever the score: {sc.rejections.map(r => REJECTION[r] ?? r.replaceAll('_', ' ')).join('; ')}.</p>}
+                  <ul className="bars">{SCORE_PARTS.map(k => {
+                    const c = sc.components[k]
+                    return (
+                      <li key={k}>
+                        <span>{SCORE_LABEL[k]}</span>
+                        <i><b style={{ width: `${c?.known ? c.value ?? 0 : 0}%` }} /></i>
+                        <em>{c?.known ? Math.round(c.value ?? 0) : 'unknown'}</em>
+                        <small>{SCORE_HELP[k]}{c?.detail ? ` · ${c.detail}` : ''}</small>
+                      </li>
+                    )
+                  })}</ul>
+                </div>
+              </div>
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
 }
-const AccountRow = ({ a }: { a: Account }) => (
-  <tr>
-    <td><b>{a.name}</b><small>{a.domain}</small>{a.score.rejections.map(r => <small key={r} className="err">{r.replaceAll('_', ' ')}</small>)}</td>
-    <td><b>{a.score.total.toFixed(1)}</b>{a.score.tier && <small>Tier {a.score.tier}</small>}</td>
-    <td><Tag tone={a.score.status === 'qualified' ? 'good' : a.score.status === 'rejected' ? 'bad' : 'warn'}>{a.score.status.replace('_', ' ')}</Tag></td>
-    <td>{a.size ?? 'unknown'}</td><td>{a.country ?? 'unknown'}</td>
-    <td>{comp(a, 'fit')}</td><td>{comp(a, 'timing')}</td><td>{comp(a, 'reachability')}</td><td>{comp(a, 'evidence_quality')}</td>
-  </tr>
-)
 
 export function Signals({ v }: { v: MissionView }) {
   const rows = v.accounts.flatMap(a => a.signals.map(s => ({ ...s, account: a.name })))
@@ -183,28 +222,42 @@ export function Signals({ v }: { v: MissionView }) {
   )
 }
 
+const ORDINAL = ['', '1st', '2nd', '3rd', '4th', '5th']
+
 export function Committee({ v }: { v: MissionView }) {
   const accounts = v.accounts.filter(a => a.people_searched)
   if (!accounts.length) return <Empty>The Buying Committee Mapper has not run yet.</Empty>
+  const anyContact = accounts.some(a => a.stakeholders.some(s => s.contact?.length))
   return (
     <div className="grid">
+      {!anyContact && (
+        <p className="alert span-all">
+          No email or phone for these people yet. In live mode Trigger Point asks Crustdata for them when it maps the committee (about 3 credits per person it can match, nothing for people it can't). If a lookup was skipped or limited by the credit budget, the reason is in the coverage notes. LinkedIn is shown wherever Crustdata gave one.
+        </p>
+      )}
       {accounts.map(a => (
         <Card wide key={a.id} title={a.name ?? 'Account'} hint="Roles and order are suggestions from job titles. Do not contact everyone.">
           {a.stakeholders.length === 0 && <Empty>No verified person found.</Empty>}
-          <table>
-            <thead><tr><th>Order</th><th>Person</th><th>Role</th><th>Status</th><th>Purpose</th><th>Ask</th><th>Profile</th></tr></thead>
-            <tbody>{a.stakeholders.map((s, i) => (
-              <tr key={i}>
-                <td>{s.sequence}</td>
-                <td><b>{s.known ? s.name ?? 'Name unknown' : 'Nobody found yet'}</b><small>{s.title}</small></td>
-                <td>{s.role}</td>
-                <td><Tag tone={s.known ? (s.employer_verified ? 'good' : 'warn') : undefined}>{s.known ? (s.employer_verified ? 'Employer verified' : 'Unverified') : 'Inferred role'}</Tag></td>
-                <td>{s.purpose}</td>
-                <td>{s.ask}</td>
-                <td>{s.profile_url ? <Source url={s.profile_url} label="profile" /> : '-'}</td>
-              </tr>
-            ))}</tbody>
-          </table>
+          <ul className="people">
+            {a.stakeholders.map((s, i) => (
+              <li key={i} className={`person${s.known ? '' : ' unknown'}`}>
+                <span className="avatar" aria-hidden="true">{s.known ? initials(s.name) : '?'}</span>
+                <div className="person-main">
+                  <div className="p-row1">
+                    <b>{s.known ? s.name ?? 'Name unknown' : 'Nobody found yet'}</b>
+                    <span className="p-title">{s.title}</span>
+                    <Tag>{s.role}</Tag>
+                    <Tag tone={s.known ? (s.employer_verified ? 'good' : 'warn') : undefined}>{s.known ? (s.employer_verified ? 'Employer verified' : 'Unverified') : 'Inferred role'}</Tag>
+                    <span className="p-order" title={[s.in_role_since ? `In this role since ${s.in_role_since.slice(0, 7)}` : '', s.updated_at ? `Crustdata refreshed ${s.updated_at.slice(0, 10)}` : ''].filter(Boolean).join(' · ') || undefined}>
+                      Approach {ORDINAL[s.sequence] ?? `#${s.sequence}`}{s.in_role_since ? ` · since ${s.in_role_since.slice(0, 7)}` : ''}
+                    </span>
+                  </div>
+                  <div className="p-row2"><span><i>Purpose</i>{s.purpose}</span><span><i>Ask</i>{s.ask}</span></div>
+                  {s.known && <PersonActions s={s} />}
+                </div>
+              </li>
+            ))}
+          </ul>
           {a.people_rejected.length > 0 && <small className="muted">Rejected: {a.people_rejected.map(r => `${r.current_title ?? 'unknown'} (${r.reason.replaceAll('_', ' ')})`).join(', ')}</small>}
         </Card>
       ))}

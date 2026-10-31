@@ -6,10 +6,11 @@ is rejected before an HTTP request exists, so LLM-proposed filters cannot reach 
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
 
 Operator = Literal[
     "=", "!=", "<", "=<", ">", "=>", "in", "not_in", "is_null", "is_not_null", "(.)", "[.]"
@@ -398,7 +399,7 @@ PERSON_FILTERABLE_FIELDS: frozenset[str] = frozenset(
         "experience.employment_details.current.start_date",
     }
 )
-# Never request contact data here: it is a separate, opt-in, per-contact-billed endpoint.
+# Never request contact data here: it is a separate, opt-in, per-contact-billed step (person enrich).
 PERSON_RESPONSE_FIELDS = [
     "crustdata_person_id",
     "basic_profile.name",
@@ -583,12 +584,22 @@ class _PersonMeta(_Lenient):
     updated_at: str | None = None
 
 
+class _Contact(_Lenient):
+    """`contact` appears only on a person enrich response, never on our search. Items are a bare
+    string or an object with the value and a deliverability status; both are accepted."""
+
+    business_emails: list[Any] | None = None
+    personal_emails: list[Any] | None = None
+    phone_numbers: list[Any] | None = None
+
+
 class PersonProfile(_Lenient):
     crustdata_person_id: int
     basic_profile: _PersonBasic | None = None
     experience: _Experience | None = None
     social_handles: _Social | None = None
     metadata: _PersonMeta | None = None
+    contact: _Contact | None = None
 
 
 class PersonSearchResponse(_Lenient):
@@ -630,8 +641,67 @@ class JobSearchPage(BaseModel):
     total_count: int | None
 
 
+class ContactPoint(BaseModel):
+    """One email or phone number Crustdata supplied for a person. Never copied into evidence,
+    drafts, prompts or event text; it is shown to the user only."""
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: Literal["email", "phone"]
+    label: Literal["business", "personal"] | None = None
+    value: str
+    status: str | None = None  # the provider's deliverability verdict, as given
+
+
+_EMAIL = re.compile(r"^[^\s@<>\"',;]+@[^\s@<>\"',;]+\.[^\s@<>\"',;]+$")
+_PHONE = re.compile(r"^\+?[0-9][0-9 ()\-.]{5,19}$")
+MAX_CONTACTS_PER_KIND = 5
+_DEAD_EMAIL = {"invalid", "undeliverable", "bounced"}
+
+
+def _contact_points(c: _Contact | None) -> list[ContactPoint]:
+    """Valid, de-duplicated contact points. Anything malformed is dropped, not repaired."""
+    if c is None:
+        return []
+    out: list[ContactPoint] = []
+    groups: list[
+        tuple[Literal["email", "phone"], Literal["business", "personal"] | None, list[Any] | None]
+    ] = [
+        ("email", "business", c.business_emails),
+        ("email", "personal", c.personal_emails),
+        ("phone", None, c.phone_numbers),
+    ]
+    for kind, label, items in groups:
+        seen: set[str] = set()
+        raw: Any
+        status: Any
+        for item in items or []:
+            if isinstance(item, str):
+                raw, status = item, None
+            elif isinstance(item, dict):
+                raw = item.get(kind) or item.get("email") or item.get("phone") or item.get("value")
+                status = item.get("status") or item.get("verification_status")
+            else:
+                continue
+            value = raw.strip() if isinstance(raw, str) else ""
+            if kind == "email" and str(status or "").strip().lower() in _DEAD_EMAIL:
+                continue  # an address the provider says cannot receive mail is not worth showing
+            valid = _EMAIL.match(value) if kind == "email" else _PHONE.match(value)
+            key = value.lower()
+            if not valid or key in seen or len(seen) >= MAX_CONTACTS_PER_KIND:
+                continue
+            seen.add(key)
+            out.append(
+                ContactPoint(
+                    kind=kind, label=label, value=value, status=str(status) if status else None
+                )
+            )
+    return out
+
+
 class PersonRecord(BaseModel):
-    """Minimal person data for the stated purpose. No contact details."""
+    """Person data for the stated purpose. `contact` is empty unless contact details were bought
+    from Crustdata (person enrich); our search request never asks for them."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -644,6 +714,7 @@ class PersonRecord(BaseModel):
     profile_url: str | None
     provider_updated_at: str | None
     retrieved_at: datetime
+    contact: list[ContactPoint] = Field(default_factory=list)
 
 
 class PersonSearchPage(BaseModel):
@@ -698,4 +769,80 @@ def normalise_person(p: PersonProfile, retrieved_at: datetime) -> PersonRecord:
         ),
         provider_updated_at=p.metadata.updated_at if p.metadata else None,
         retrieved_at=retrieved_at,
+        contact=_contact_points(p.contact),
     )
+
+
+# Contact lookup: POST /person/contact/enrich, from docs.crustdata.com/person-docs/contact/enrich.
+# Business emails and phone numbers only; personal emails are not requested. UNVERIFIED: never
+# called live, and the endpoint is documented as enterprise-only (a 403 is handled as "unavailable").
+CONTACT_FIELDS = ("contact.business_emails", "contact.phone_numbers")
+MAX_CONTACT_BATCH = 25
+MIN_CONTACT_CONFIDENCE = 0.99
+
+
+class ContactEnrichRequest(BaseModel):
+    """People to look up, as (provider person id, professional-network profile URL)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    targets: tuple[tuple[int, str], ...] = Field(min_length=1, max_length=MAX_CONTACT_BATCH)
+
+    @field_validator("targets")
+    @classmethod
+    def _http_urls(cls, v: tuple[tuple[int, str], ...]) -> tuple[tuple[int, str], ...]:
+        for _, url in v:
+            if not re.match(r"^https?://\S+$", url):
+                raise ValueError("a profile URL must be an http(s) link")
+        return v
+
+    def to_body(self) -> dict[str, Any]:
+        return {
+            "professional_network_profile_urls": [url for _, url in self.targets],
+            "fields": list(CONTACT_FIELDS),
+        }
+
+
+class _ContactPerson(_Lenient):
+    crustdata_person_id: int | None = None
+    contact: _Contact | None = None
+
+
+class _ContactMatch(_Lenient):
+    confidence_score: float | None = None
+    person_data: _ContactPerson | None = None
+
+
+class _ContactEntry(_Lenient):
+    matched_on: str | None = None
+    match_type: str | None = None
+    matches: list[_ContactMatch] = Field(default_factory=list)
+
+
+class ContactEnrichResponse(RootModel[list[_ContactEntry]]):
+    """The response is a top-level array with one entry per identifier we sent."""
+
+
+def normalise_contacts(
+    req: ContactEnrichRequest, resp: ContactEnrichResponse
+) -> dict[int, list[ContactPoint]]:
+    """Contact points by our person id. A match is used only when it is a confident one and does
+    not name a different person than the one we asked about; otherwise the person gets nothing."""
+    by_url = {url: pid for pid, url in req.targets}
+    asked = set(by_url.values())
+    out: dict[int, list[ContactPoint]] = {}
+    for entry in resp.root:
+        pid = by_url.get(entry.matched_on or "")
+        for m in entry.matches:
+            if (m.confidence_score or 0) < MIN_CONTACT_CONFIDENCE or m.person_data is None:
+                continue
+            got = m.person_data.crustdata_person_id
+            if pid is None and got in asked:
+                pid = got  # the provider may normalise the URL it echoes back
+            if pid is None or (got is not None and got != pid):
+                continue
+            points = _contact_points(m.person_data.contact)
+            if points:
+                out[pid] = points
+            break
+    return out

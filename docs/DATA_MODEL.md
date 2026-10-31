@@ -92,7 +92,7 @@ These are the Pydantic models, in `src/trigger_point/`. They differ from the con
   - Also carries `tech_keywords`, `freshness_days` and `credit_budget`.
   - The compiled Crustdata request is stored next to the plan on `Mission.search_request`.
 - **Account → `Company`** (`providers/crustdata/models.py`). Normalised. Missing data stays `None`. Identity is the `provider_company_id` plus the primary domain, deduplicated in `mission/selection.py`.
-- **Person → `PersonRecord`.** Name, current title, current employer ids, role start, profile URL, provider `updated_at`. **No contact fields exist.**
+- **Person → `PersonRecord`.** Name, current title, current employer ids, role start, profile URL, provider `updated_at`, and `contact`: an optional list of email and phone points (value, business or personal, the provider's deliverability status). `contact` is empty unless contact details were bought from Crustdata (person enrich); our search never requests them. They are shown to the user only and never copied into evidence, drafts, prompts or event text.
 - **Evidence** (`models/evidence.py`)
   - `published_at` is split into `event_on` (when it happened, e.g. a job posted date) and `as_of` (when the provider measured or refreshed it). Both are separate from `retrieved_at`.
   - The id is content-based and stable across runs.

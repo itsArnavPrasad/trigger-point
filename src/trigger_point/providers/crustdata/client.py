@@ -21,6 +21,9 @@ from trigger_point.providers.crustdata.errors import CrustdataError, error_from_
 from trigger_point.providers.crustdata.models import (
     CompanySearchPage,
     CompanySearchRequest,
+    ContactEnrichRequest,
+    ContactEnrichResponse,
+    ContactPoint,
     EndpointAccess,
     IdentifyResult,
     JobSearchPage,
@@ -31,6 +34,7 @@ from trigger_point.providers.crustdata.models import (
     PersonSearchResponse,
     SearchResponse,
     normalise_company,
+    normalise_contacts,
     normalise_job,
     normalise_person,
 )
@@ -68,6 +72,14 @@ def estimate_search_credits(req: CompanySearchRequest) -> Decimal:
 JOB_CREDITS_PER_RESULT = Decimal("0.03")
 # Person search: base 0.03, plus 0.1 for filtering on and 0.1 for receiving `experience`.
 PERSON_CREDITS_PER_RESULT = Decimal("0.03") + Decimal("0.1") + Decimal("0.1")
+
+
+# Contact lookup, per matched person: business email 1 + phone 2. An unmatched person is free.
+CONTACT_CREDITS_PER_PERSON = Decimal("3")
+
+
+def estimate_contact_credits(req: ContactEnrichRequest) -> Decimal:
+    return CONTACT_CREDITS_PER_PERSON * len(req.targets)
 
 
 def estimate_job_credits(req: JobSearchRequest) -> Decimal:
@@ -241,6 +253,18 @@ class CrustdataClient:
         )
         receipt.result_count = len(page.people)
         return ProviderResult(page, receipt)
+
+    def enrich_contacts(
+        self, req: ContactEnrichRequest
+    ) -> ProviderResult[dict[int, list[ContactPoint]]]:
+        """Email and phone for the people asked about, by our person id. Paid per matched person."""
+        data, receipt = self._call(
+            "POST", "/person/contact/enrich", req.to_body(), None, estimate_contact_credits(req)
+        )
+        raw = self._parse(receipt, lambda: ContactEnrichResponse.model_validate(data))
+        found = normalise_contacts(req, raw)
+        receipt.result_count = len(found)
+        return ProviderResult(found, receipt)
 
     def endpoint_access(
         self, path: str | None = None, category: str | None = None

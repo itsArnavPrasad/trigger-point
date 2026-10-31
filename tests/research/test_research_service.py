@@ -26,9 +26,20 @@ def job(jid: int, cid: int, title: str, posted: str, desc: str = "") -> dict[str
     }
 
 
-def prof(pid: int, cid: int, title: str) -> dict[str, Any]:
+def prof(pid: int, cid: int, title: str, linked: bool = False) -> dict[str, Any]:
     return {
         "crustdata_person_id": pid,
+        **(
+            {
+                "social_handles": {
+                    "professional_network_identifier": {
+                        "profile_url": f"https://www.linkedin.example/in/{pid}"
+                    }
+                }
+            }
+            if linked
+            else {}
+        ),
         "basic_profile": {"name": f"Person {pid}", "current_title": title},
         "experience": {
             "employment_details": {"current": [{"title": title, "crustdata_company_id": cid}]}
@@ -37,7 +48,15 @@ def prof(pid: int, cid: int, title: str) -> dict[str, Any]:
 
 
 class Responder:
-    def __init__(self, jobs: Any = None, people: Any = None, job_status: int = 200) -> None:
+    def __init__(
+        self,
+        jobs: Any = None,
+        people: Any = None,
+        job_status: int = 200,
+        contacts: dict[int, dict[str, Any]] | None = None,
+        contact_status: int = 200,
+    ) -> None:
+        self.contacts, self.contact_status = contacts or {}, contact_status
         self.jobs = (
             jobs
             if jobs is not None
@@ -77,11 +96,52 @@ class Responder:
             return httpx.Response(
                 200, json={"profiles": self.people}, headers={"x-credits-used": "0.23"}
             )
+        if r.url.path == "/person/contact/enrich":
+            if self.contact_status != 200:
+                return httpx.Response(
+                    self.contact_status,
+                    json={
+                        "error": {
+                            "type": "permission_error",
+                            "message": "no contact access",
+                            "metadata": [],
+                        }
+                    },
+                )
+            urls = (body or {}).get("professional_network_profile_urls", [])
+            out = []
+            for url in urls:
+                pid = int(url.rsplit("/", 1)[1])
+                hit = self.contacts.get(pid)
+                matches = (
+                    [
+                        {
+                            "confidence_score": 1.0,
+                            "person_data": {"crustdata_person_id": pid, "contact": hit},
+                        }
+                    ]
+                    if hit
+                    else []
+                )
+                out.append(
+                    {
+                        "matched_on": url,
+                        "match_type": "professional_network_profile_url",
+                        "matches": matches,
+                    }
+                )
+            return httpx.Response(
+                200, json=out, headers={"x-credits-used": str(3 * len(self.contacts))}
+            )
         return httpx.Response(404, json={})
 
 
 def setup(
-    tmp_path: Path, responder: Responder, budget: float = 5.0, accounts: list[Any] | None = None
+    tmp_path: Path,
+    responder: Responder,
+    budget: float = 5.0,
+    accounts: list[Any] | None = None,
+    fetch_contacts: bool = False,
 ) -> tuple[ResearchService, str, Store]:
     store = Store(tmp_path / "r.db")
     mission = Mission(
@@ -129,6 +189,7 @@ def setup(
         budget=budget,
         reference_date=lambda: REF,
         clock=lambda: datetime(2026, 10, 31, tzinfo=UTC),
+        fetch_contacts=fetch_contacts,
     )
     return svc, "d1", store
 
@@ -241,3 +302,70 @@ def test_people_stage_spends_only_what_the_signals_stage_left(tmp_path: Path) ->
     assert "/person/search" not in [path for path, _ in responder.requests]
     assert finished.credits["actual"] == "0.03" and finished.credits["budget"] == "0.25"
     assert any("people search skipped" in n for n in finished.notes)
+
+
+HEAD = {
+    "business_emails": [{"email": "head@ledgerloop.example", "status": "deliverable"}],
+    "phone_numbers": ["+1 415-555-0100"],
+}
+
+
+def buyer(run: Any) -> Any:
+    return next(a for a in run.accounts if a.account.provider_company_id == 1001).best_person
+
+
+def test_contact_lookup_gives_the_buyer_an_email_and_phone(tmp_path: Path) -> None:
+    people = [prof(11, 1001, "Head of Support", linked=True)]
+    responder = Responder(people=people, contacts={11: HEAD})
+    svc, did, _ = setup(tmp_path, responder, fetch_contacts=True)
+    run = svc.run(did)
+    assert [(c.kind, c.value) for c in buyer(run).person.contact] == [
+        ("email", "head@ledgerloop.example"),
+        ("phone", "+1 415-555-0100"),
+    ]
+    asked = next(b for p, b in responder.requests if p == "/person/contact/enrich")
+    assert asked["fields"] == ["contact.business_emails", "contact.phone_numbers"]
+    assert any("contact details found for 1 of 1 people" in n for n in run.notes)
+    # people search itself still never asks for contact data
+    searched = next(b for p, b in responder.requests if p == "/person/search")
+    assert not any("contact" in f for f in searched["fields"])
+
+
+def test_contact_lookup_is_off_by_default_and_makes_no_call(tmp_path: Path) -> None:
+    responder = Responder(
+        people=[prof(11, 1001, "Head of Support", linked=True)], contacts={11: HEAD}
+    )
+    svc, did, _ = setup(tmp_path, responder)
+    run = svc.run(did)
+    assert buyer(run).person.contact == []
+    assert "/person/contact/enrich" not in [p for p, _ in responder.requests]
+
+
+def test_people_without_a_profile_link_are_not_looked_up(tmp_path: Path) -> None:
+    responder = Responder(people=[prof(11, 1001, "Head of Support")], contacts={11: HEAD})
+    svc, did, _ = setup(tmp_path, responder, fetch_contacts=True)
+    svc.run(did)
+    assert "/person/contact/enrich" not in [p for p, _ in responder.requests]
+
+
+def test_a_key_without_contact_access_degrades_with_a_note_and_the_run_completes(
+    tmp_path: Path,
+) -> None:
+    responder = Responder(
+        people=[prof(11, 1001, "Head of Support", linked=True)], contact_status=403
+    )
+    svc, did, _ = setup(tmp_path, responder, fetch_contacts=True)
+    run = svc.run(did)
+    assert run.outcome == "completed" and buyer(run).person.contact == []
+    assert any("contact lookup unavailable" in n for n in run.notes)
+
+
+def test_contact_lookup_stops_when_the_credit_budget_cannot_cover_it(tmp_path: Path) -> None:
+    responder = Responder(
+        people=[prof(11, 1001, "Head of Support", linked=True)], contacts={11: HEAD}
+    )
+    svc, did, _ = setup(tmp_path, responder, budget=1.5, fetch_contacts=True)
+    run = svc.run(did)
+    assert "/person/contact/enrich" not in [p for p, _ in responder.requests]
+    assert any("contact lookup stopped: credit budget exhausted" in n for n in run.notes)
+    assert run.outcome == "completed"

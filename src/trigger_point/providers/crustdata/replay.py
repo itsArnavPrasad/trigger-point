@@ -60,6 +60,8 @@ class RecordingTransport(httpx.BaseTransport):
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         response = self._inner.handle_request(request)
         response.read()
+        if request.url.path.startswith("/person/contact"):
+            return response  # real people's emails and phones never become a committed fixture
         slug, key = _key_for(request)
         target = self._root / slug / f"{key[:16]}.json"
         target.parent.mkdir(parents=True, exist_ok=True)
