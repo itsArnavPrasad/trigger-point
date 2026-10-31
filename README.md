@@ -1,5 +1,7 @@
 # Trigger Point
 
+<img src="office/public/art/logo.png" alt="Trigger Point logo" width="120" />
+
 An evidence-first GTM operating system. Give it a website and a revenue goal. It works out who to sell to, why they may need the product now, how to reach them, what happened, and what to improve next.
 
 **Core rule:** every account must answer **Why this account? Why this person? Why now? Why us?** with evidence, or be rejected with a reason.

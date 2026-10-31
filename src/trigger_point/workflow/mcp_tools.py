@@ -9,6 +9,7 @@ from typing import Any, Literal
 from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
+from trigger_point.context.horizon import horizon_from_goal
 from trigger_point.context.service import IntakeBrief
 from trigger_point.workflow.feedback import FeedbackService
 from trigger_point.workflow.service import WorkflowService
@@ -38,7 +39,9 @@ def register_workflow_tools(server: MCPServer, wf: WorkflowService) -> None:  # 
         SSRF-guarded) and drafts the business profile. The same request returns the open
         mission. Every later tool takes the returned mission_id. A product description is
         recorded as a user statement, which also rescues a site that cannot be read."""
-        brief = IntakeBrief(product_description, target_geography, time_horizon)
+        brief = IntakeBrief(
+            product_description, target_geography, time_horizon or horizon_from_goal(goal)
+        )
         return wf.create_mission(website_url, goal, brief)
 
     @server.tool(annotations=WRITES)

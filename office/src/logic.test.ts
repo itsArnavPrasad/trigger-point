@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { autopilotLine, conversationLabel, daysLabel, lastWords, agentLabel, connState, connectionRows, connectionsReady, contactStatus, elapsed, flowSteps, gmailCompose, initials, journey, liveness, meetingStatus, modeLabel, percent, permissionLabel, profileLink, rankNote, safeHref, scoreLine, signalLabel, splitMeetings, telHref, tokenFromHash } from './logic'
+import { nowDoing, waitingSummary, autopilotLine, conversationLabel, daysLabel, lastWords, agentLabel, connState, connectionRows, connectionsReady, contactStatus, elapsed, flowSteps, gmailCompose, initials, journey, liveness, meetingStatus, modeLabel, percent, permissionLabel, profileLink, rankNote, safeHref, scoreLine, signalLabel, splitMeetings, telHref, tokenFromHash } from './logic'
 import type { MissionView } from './types'
 
 const view = (over: Partial<MissionView> & { state?: string } = {}) => ({
@@ -226,4 +226,23 @@ describe('conversations', () => {
 it('shows the real reason for steps that are not permissions', () => {
   expect(autopilotLine({ kind: 'conversation', decision: 'allow', reason: 'Booked Ledgerloop', tool: null })).toBe('Booked Ledgerloop')
   expect(autopilotLine({ kind: 'write', decision: 'hold', reason: 'Checks failed', tool: null })).toBe('Checks failed. Waiting for you')
+})
+
+describe('what is happening now', () => {
+  const ev = (kind: string, summary: string, tool: string | null = null) => ({ kind, tool, summary, at: '2026-10-31T10:00:00Z' })
+  it('names the running step only while it is running', () => {
+    expect(nowDoing({ run: { status: 'working' }, activity: [ev('tool_started', 'Called discover_accounts')] })).toBe('Finding accounts that fit')
+    expect(nowDoing({ run: { status: 'working' }, activity: [ev('tool_started', 'Called x'), ev('tool_finished', 'Finished x')] })).toBe('Thinking about the next step')
+    expect(nowDoing({ run: { status: 'idle' }, activity: [ev('tool_started', 'Called discover_accounts')] })).toBeNull()
+    expect(nowDoing({ run: { status: 'working' }, activity: [ev('tool_started', 'Called mcp__claude_ai_Gmail__send_message')] })).toBe('Sending an email')
+    expect(nowDoing({ run: null })).toBeNull()
+  })
+  it('explains why a mission is waiting', () => {
+    const acct = (r: string[]) => ({ score: { rejections: r } }) as never
+    const out = waitingSummary({ mission: { state: 'WAITING_FOR_INPUT', wait_reason: 'No qualified account' } as never, accounts: [acct(['no_fresh_why_now']), acct(['no_fresh_why_now'])], funnel: { found: 9 } })
+    expect(out?.detail).toContain('9 accounts were found')
+    expect(out?.detail).toContain('2 of 2')
+    expect(waitingSummary({ mission: { state: 'WAITING_FOR_INPUT' } as never, accounts: [], funnel: { qualified: 2 } })).toBeNull()
+    expect(waitingSummary({ mission: { state: 'RESEARCHING' } as never, accounts: [], funnel: {} })).toBeNull()
+  })
 })

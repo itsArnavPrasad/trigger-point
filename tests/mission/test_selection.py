@@ -105,3 +105,32 @@ def test_the_buyer_rule_never_rejects_when_no_buyer_words_are_named() -> None:
         None,
     )
     assert len(kept) == 1
+
+
+def test_a_schools_plan_keeps_places_of_learning_and_drops_tutoring_apps() -> None:
+    def named(
+        pid: int, name: str, desc: str | None = None, industries: list[str] | None = None
+    ) -> Company:
+        return company(pid, name, f"d{pid}.in").model_copy(
+            update={"description": desc, "industries": industries or []}
+        )
+
+    found = [
+        named(1, "Sri Basava Public School"),
+        named(2, "Podar International", industries=["Primary and Secondary Education"]),
+        named(3, "The Heritage", desc="A CBSE day school for classes 1 to 12 in Gurugram."),
+        named(4, "GlutaClass", desc="Our AI audio tutor reads your NCERT textbook with you."),
+        named(5, "JK Classes", desc="Coaching for school students."),
+        named(6, "Kabimo", desc=None),
+    ]
+    kept, rejected = select_accounts(found, plan(icp_query="CBSE schools in India"), "x.com", None)
+    assert [c.name for c in kept] == [
+        "Sri Basava Public School",
+        "Podar International",
+        "The Heritage",
+    ]
+    assert {r.name for r in rejected} == {"GlutaClass", "JK Classes", "Kabimo"}
+    assert {r.reason for r in rejected} == {"not_the_buyer"}
+    # A plan that names no school segment is not affected.
+    kept2, _ = select_accounts(found[3:], plan(icp_query="software companies"), "x.com", None)
+    assert len(kept2) == 3

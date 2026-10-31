@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from trigger_point.api.app import Services
 from trigger_point.office.autopilot import AutopilotService, Availability, Policy
 from trigger_point.office.conversations import Conversations
+from trigger_point.office.routes_note import AUTOPILOT_NOTE
 from trigger_point.office.store import OfficeStore
 from trigger_point.workflow.conversation import OPEN_STATES
 from trigger_point.workflow.models import TERMINAL
@@ -79,18 +80,8 @@ def drive_mission(
         )
         made: list[str] = []
         for ar in ranked:
-            if len(made) >= policy.meetings_wanted:
+            if len(made) >= max(8, policy.meetings_wanted):
                 break
-            if ar.best_person is None or not ar.best_person.person.name:
-                _once(
-                    office,
-                    mission_id,
-                    "target",
-                    f"nobuyer:{ar.account.provider_company_id}",
-                    "hold",
-                    f"No named buyer found at {ar.account.name}",
-                )
-                continue
             out = wf.target_from_account(
                 mission_id, ar.account.provider_company_id, audience_for(ar.account.industries)
             )
@@ -221,7 +212,13 @@ def _trip_breaker(office: OfficeStore, autopilot: AutopilotService, mission_id: 
     for e in office.autopilot_log(mission_id, 200):  # newest first; a pause starts a fresh count
         if e["kind"] == "control":
             break
-        if e["decision"] == "hold" and e["kind"] in ("write", "approve", "schedule", "error"):
+        if e["decision"] == "hold" and e["kind"] in (
+            "write",
+            "approve",
+            "schedule",
+            "error",
+            "pipeline",
+        ):
             holds.append(e)
     if len(holds) >= BREAKER and autopilot.policy_for(mission_id).active:
         autopilot.save(mission_id, {"paused": True})
@@ -230,6 +227,10 @@ def _trip_breaker(office: OfficeStore, autopilot: AutopilotService, mission_id: 
         )
 
 
+PIPELINE_STATES = (
+    "RECEIVED", "PROFILE_REVIEW", "ICP_READY", "ACCOUNTS_FOUND", "SIGNALS_RESEARCHED",
+    "PEOPLE_MAPPED", "EVIDENCE_VERIFIED",
+)  # fmt: skip
 REPLY_CHECK = timedelta(minutes=10)
 CALENDAR_ASK = timedelta(minutes=5)
 
@@ -241,6 +242,8 @@ def nudge(
     event, read new mail. Each ask is made once, and never while the Director is busy."""
     run = office.run(mission_id)
     if run is not None and run["status"] == "working":
+        return
+    if resume(office, convs, runner, mission_id, run, now):
         return
     if convs.needs_calendar(mission_id):
         last_cal = next(
@@ -295,3 +298,43 @@ def nudge(
             "Check for replies: call list_open_threads, read each thread with Gmail get_thread "
             "(PLAIN_TEXT), then call sync_replies.",
         )
+
+
+RESUME_AFTER = timedelta(seconds=45)
+RESUME_RETRY = timedelta(minutes=3)
+RESUME_MAX = 4  # per state: if Claude Code keeps stopping here, say so instead of looping
+
+
+def resume(
+    office: OfficeStore, convs: Conversations, runner: Any, mission_id: str, run: Any, now: datetime
+) -> bool:
+    """Claude Code (the Director) runs the research. It finishes a step and goes idle, and with
+    Autopilot on nothing else wakes it, so tell it to carry on until the mission leaves the
+    research pipeline. Approvals inside the policy are answered by Autopilot as they come."""
+    if run is None or run["status"] != "idle" or office.pending_permissions(mission_id):
+        return False
+    state = convs.wf.engine.mission(mission_id).state
+    if state not in PIPELINE_STATES:
+        return False
+    if now - datetime.fromisoformat(run["at"]) < RESUME_AFTER:
+        return False
+    tries = [
+        e
+        for e in office.autopilot_log(mission_id, 200)
+        if e["kind"] == "resume" and e["subject"].startswith(state) and e["decision"] == "allow"
+    ]
+    if len(tries) >= RESUME_MAX:
+        reason = f"Claude Code stopped at {state} {RESUME_MAX} times"
+        _once(office, mission_id, "resume", f"{state}:gave-up", "hold", reason)
+        return False
+    if tries and now - datetime.fromisoformat(tries[0]["at"]) < RESUME_RETRY:
+        return False
+    office.log_autopilot(
+        mission_id, "resume", "allow", "Told Claude Code to continue", f"{state}:{len(tries) + 1}"
+    )
+    runner.send(
+        mission_id,
+        f"{AUTOPILOT_NOTE} The mission is at {state}. Continue with the next step now: do not "
+        "wait for the founder and do not ask whether to proceed.",
+    )
+    return True

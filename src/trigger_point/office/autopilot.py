@@ -88,13 +88,15 @@ class Availability(BaseModel):
 class Policy(BaseModel):
     enabled: bool = True
     paused: bool = False
-    credit_cap: int = Field(default=50, ge=0, le=100000)
+    credit_cap: int | None = Field(default=None, ge=0, le=10_000_000)  # None: no cap
     meetings_wanted: int = Field(default=5, ge=1, le=100)
     daily_send_cap: int = Field(default=20, ge=1, le=500)
     auto_approve_outreach: bool = True
     availability: Availability = Field(default_factory=Availability)
     send_window: Availability = Field(
-        default_factory=lambda: Availability(start="09:30", end="17:30", minutes=15)
+        default_factory=lambda: Availability(
+            days=[0, 1, 2, 3, 4, 5, 6], start="00:00", end="23:59", minutes=15
+        )
     )
     max_turns: int = Field(default=6, ge=1, le=20)
     silence_hours: int = Field(default=72, ge=1, le=720)
@@ -173,9 +175,10 @@ def decide(policy: Policy, ctx: Context, tool: str, tool_input: Mapping[str, Any
         return _hold("The tool names a different mission than this session")
     if tool not in AUTO_TOOLS and not _calendar_read(tool):
         return _hold("This decision is yours to make")
-    if tool in CREDIT_TOOLS and ctx.credits_spent + ctx.projected_credits > policy.credit_cap:
+    cap = policy.credit_cap
+    if tool in CREDIT_TOOLS and cap is not None and ctx.credits_spent + ctx.projected_credits > cap:
         return _hold(
-            f"Would pass the {policy.credit_cap} credit cap "
+            f"Would pass the {cap} credit cap "
             f"({ctx.credits_spent} spent, up to {ctx.projected_credits} more)"
         )
     if tool == GMAIL_SEND:
@@ -242,6 +245,11 @@ class AutopilotService:
         for key in (mission_id, GLOBAL):
             body = self.office.autopilot_body(key)
             if body is not None:
+                if body.get("credit_cap") in (
+                    50,
+                    5000,
+                ):  # the old defaults: no cap is the default now
+                    body = {**body, "credit_cap": None}
                 return Policy.model_validate(body)
         return Policy(enabled=self.default_on)
 

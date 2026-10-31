@@ -54,7 +54,7 @@ from trigger_point.research.signals import (
 )
 from trigger_point.store.db import Store
 
-PEOPLE_TOP_N = 5
+PEOPLE_TOP_N = 15
 JOBS_PER_ACCOUNT = 5
 PEOPLE_PER_ACCOUNT = 3
 POSTS_PER_ACCOUNT = 3

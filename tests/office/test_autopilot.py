@@ -52,8 +52,14 @@ def verdict(tool: str, tool_input: dict[str, Any] | None = None, **over: Any) ->
         ("approve_icp_plan", {}, {"paused": True}, "hold"),
         ("approve_icp_plan", {}, {"known_mission": False}, "hold"),
         ("decide_lesson", {}, {}, "hold"),  # learning stays human
-        ("discover_accounts", {}, {"credits_spent": Decimal(45)}, "allow"),  # 45+5 == cap
-        ("discover_accounts", {}, {"credits_spent": Decimal(46)}, "hold"),
+        (
+            "discover_accounts",
+            {},
+            {"credits_spent": Decimal(45), "credit_cap": 50},
+            "allow",
+        ),  # 45+5 == cap
+        ("discover_accounts", {}, {"credits_spent": Decimal(46), "credit_cap": 50}, "hold"),
+        ("discover_accounts", {}, {"credits_spent": Decimal(10**6)}, "allow"),  # no cap by default
         (GMAIL_SEND, {"to": INBOX, "body": "x"}, {}, "allow"),
         (GMAIL_SEND, {"to": ["Name <demo@example.com>"]}, {}, "allow"),
         (GMAIL_SEND, {"to": "someone@school.in"}, {}, "hold"),

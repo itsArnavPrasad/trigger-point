@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from trigger_point.api.app import Services
+from trigger_point.context.horizon import horizon_from_goal
 from trigger_point.office import scheduler
 from trigger_point.office.autopilot import (
     CALENDAR_CREATE,
@@ -37,6 +38,7 @@ from trigger_point.office.autopilot import (
 from trigger_point.office.autopilot_driver import drive
 from trigger_point.office.connectors import ConnectorStatus
 from trigger_point.office.conversations import Conversations
+from trigger_point.office.routes_note import AUTOPILOT_NOTE
 from trigger_point.office.runner import PROJECT_ROOT, MissionRunner
 from trigger_point.office.store import OfficeStore
 from trigger_point.office.views import (
@@ -181,19 +183,13 @@ class HookPermission(BaseModel):
     role: str | None = None
 
 
-AUTOPILOT_NOTE = (
-    "Autopilot is ON. Run every step without asking the founder questions: state your assumptions "
-    "and continue. Approvals inside the policy are answered for you; if one is held, stop and say "
-    "what is waiting."
-)
-
-
 def _first_prompt(m: NewMission, autopilot_on: bool = False) -> str:
     """User text is passed as labelled data, and the tool validates it."""
     note = f"\n{AUTOPILOT_NOTE}" if autopilot_on else ""
+    values = {**m.model_dump(), "time_horizon": m.time_horizon or horizon_from_goal(m.goal)}
     return (
         "Start this Trigger Point mission now. Call create_mission with exactly these values.\n"
-        + json.dumps(m.model_dump(), indent=2)
+        + json.dumps(values, indent=2)
         + note
     )
 
@@ -697,6 +693,12 @@ def office_router(  # noqa: C901
 
         return StreamingResponse(ticks(), media_type="text/event-stream")
 
+    def sweep_all() -> list[str]:
+        for m in services.workflow.engine.missions(limit=50):
+            sweep(m.id)
+        return []
+
+    r.sweep_all = sweep_all  # type: ignore[attr-defined]
     return r
 
 
@@ -716,10 +718,13 @@ def install_office(
     token = office_token()
     app.state.office = office
     app.state.runner = active
-    app.include_router(office_router(services, office, active, autopilot, convs))
+    router = office_router(services, office, active, autopilot, convs)
+    app.include_router(router)
     if runner is None:
         scheduler.start(
-            services.feedback, active, lambda: drive(services, office, autopilot, convs, active)
+            services.feedback,
+            active,
+            lambda: [*router.sweep_all(), *drive(services, office, autopilot, convs, active)],  # type: ignore[attr-defined]
         )
 
     @app.middleware("http")

@@ -278,3 +278,43 @@ export function lastWords(turns: { who: string; text: string }[], max = 120): st
   const text = t ? t.text.split(/\s+/).join(' ') : ''
   return text.length > max ? `${text.slice(0, max - 1)}…` : text
 }
+
+const DOING: [RegExp, string][] = [
+  [/create_mission|edit_business_profile/, 'Reading your website'],
+  [/build_strategy/, 'Building your strategy'],
+  [/build_icp/, 'Working out who to sell to'],
+  [/discover_accounts/, 'Finding accounts that fit'],
+  [/research_account_signals/, 'Looking for reasons to reach out now'],
+  [/map_buying_committee/, 'Finding the right person at each account'],
+  [/verify_evidence|score_account/, 'Checking the evidence'],
+  [/draft_campaign|run_quality_gate/, 'Writing and checking a message'],
+  [/prepare_test_send|Gmail__send_message/, 'Sending an email'],
+  [/Gmail__/, 'Checking your inbox for replies'],
+  [/sync_replies|list_open_threads/, 'Reading replies'],
+  [/Calendar__create_event|get_booking|record_booked_meeting/, 'Booking a meeting'],
+  [/Calendar__|record_busy_times/, 'Checking your calendar'],
+  [/Wispr/, 'Reading a meeting transcript'],
+]
+
+/** What is happening this moment, from real hook events: the newest tool call, only while it has not finished.
+ *  Nothing is shown when nothing is running. */
+export function nowDoing(v: { activity?: { kind: string; tool: string | null; summary: string; at: string }[]; run?: { status: string } | null }): string | null {
+  if (v.run?.status !== 'working') return null
+  const last = [...(v.activity ?? [])].reverse().find(a => a.kind === 'tool_started' || a.kind === 'tool_finished' || a.kind === 'tool_failed')
+  if (!last || last.kind !== 'tool_started') return v.run ? 'Thinking about the next step' : null
+  const name = `${last.tool ?? ''} ${last.summary}`
+  return DOING.find(([re]) => re.test(name))?.[1] ?? 'Working on the next step'
+}
+
+const REASON: Record<string, string> = { no_fresh_why_now: 'no recent reason to reach out (no hiring, growth or posts found)', no_relevant_buyer: 'no matching buyer found', insufficient_evidence: 'not enough evidence' }
+/** Why a waiting mission is waiting, in plain words, from the real scores. */
+export function waitingSummary(v: Pick<MissionView, 'mission' | 'accounts' | 'funnel'>): { title: string; detail: string } | null {
+  if (v.mission.state !== 'WAITING_FOR_INPUT') return null
+  if ((v.funnel.qualified ?? 0) > 0) return null  // there are people to contact: this is not a dead end
+  const found = v.funnel.found ?? v.accounts.length
+  const counts = new Map<string, number>()
+  for (const a of v.accounts) for (const r of a.score.rejections) counts.set(r, (counts.get(r) ?? 0) + 1)
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]
+  const why = top ? `${top[1]} of ${v.accounts.length} had ${REASON[top[0]] ?? human(top[0]).toLowerCase()}.` : ''
+  return { title: v.mission.wait_reason ?? 'The mission is waiting for you', detail: found ? `${found} accounts were found, and none could be contacted yet. ${why}`.trim() : why }
+}

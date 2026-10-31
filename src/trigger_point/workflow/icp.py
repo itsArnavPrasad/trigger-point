@@ -94,7 +94,9 @@ def _criteria(plan: GTMPlan) -> list[IcpCriterion]:
         add("reachability", f"A verified {titles} works there now", "must_have")
     for name in [*plan.excluded_domains, *plan.excluded_names]:
         add("firmographic", f"Is {name}", "disqualifier", "high")
-    for text in RULES.values():
+    for key, text in RULES.items():
+        if key == "no_fresh_why_now" and not plan.require_fresh_signal:
+            continue  # this plan contacts accounts that have no dated reason too
         out.append(
             IcpCriterion(
                 dimension="readiness" if "signal" in text else "reachability",

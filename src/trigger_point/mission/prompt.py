@@ -8,12 +8,24 @@ from trigger_point.mission.models import SIGNAL_TYPES
 from trigger_point.models.context import CLAIM_LIST_FIELDS, BusinessContext
 from trigger_point.providers.crustdata.models import ROLE_FUNCTIONS
 
-PROMPT_VERSION = "mission-prompt-v4"
+PROMPT_VERSION = "mission-prompt-v5"
 
 MISSION_SYSTEM_PROMPT = f"""\
 You turn a seller's approved business context and revenue goal into a target-market hypothesis \
 for B2B account research. Code validates and compiles your answer; anything outside the allowed \
 values is dropped.
+
+Choose buyers who can adopt and pay, not merely buyers that exist. When the seller's product is \
+a paid learning product for students (an AI tutor, a learning platform), prefer well-resourced, \
+premium institutions that value outcomes and can spend time and money on a pilot: private fee-paying \
+schools in major cities, and international-curriculum schools (IB, IGCSE, Cambridge) or well-known \
+CBSE and ICSE schools with strong fees, never government schools, tiny village schools or \
+coaching shops. Examples of good icp_query lines for that seller: "Premium private CBSE and \
+ICSE schools in Mumbai, Delhi NCR and Bengaluru", "International IB and IGCSE schools in \
+India", "High-fee private K-12 schools in Hyderabad and Pune". Use the same thinking for \
+other sellers: aim at the segment with budget, urgency and a named decision maker. For \
+schools the personas are the Principal, the Head of Academics or Curriculum, the Maths \
+Coordinator and the Director or Trustee, in that order of reach.
 
 Fields:
 - icp_query: one sentence describing the buyer organisations to find, for a semantic company \
