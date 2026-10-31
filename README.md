@@ -1,216 +1,380 @@
+<p align="center">
+  <img src="assets/trigger-point-value.png" alt="Trigger Point: You build the product. We handle the GTM." width="100%">
+</p>
+
 # Trigger Point
 
-An evidence-first GTM operating system. Give it a website and a revenue goal. It works out who to sell to, why they may need the product now, how to reach them, what happened, and what to improve next.
+**You build the product. Trigger Point handles the go-to-market.**
 
-**Core rule:** every account must answer **Why this account? Why this person? Why now? Why us?** with evidence, or be rejected with a reason.
+A founder gives one website and one goal. Trigger Point finds the right buyers, finds the reason to contact each buyer now, writes the message, sends it, reads the reply, and books the meeting. After each meeting, it learns and proposes a better plan.
 
-**Trigger Point Office** is the only UI: a live control room where real Claude Code agents do the work. Click a character to open its dashboard. Nothing moves unless real work happened.
+Every claim in a message has a source. If an account has no proof, Trigger Point rejects the account and says why.
 
-## What works
-| Works | On fixtures only | Not built |
+<p align="center">
+  <img src="assets/claude_mascot.png" alt="Claude Code" height="44">&nbsp;&nbsp;&nbsp;
+  <img src="assets/Crustdata.png" alt="Crustdata" height="44">&nbsp;&nbsp;&nbsp;
+  <img src="assets/gmail.png" alt="Gmail" height="44">&nbsp;&nbsp;&nbsp;
+  <img src="assets/wisprflow.png" alt="Wispr Flow" height="44">
+</p>
+
+**Contents:** [The service](#the-service) · [What it does now](#what-it-does-now) · [What it could do next](#what-it-could-do-next) · [How to run it](#how-to-run-it) · [How it is built](#how-it-is-built) · [The approaches we tried](#the-approaches-we-tried) · [More help](#more-help)
+
+---
+
+## The service
+
+### The job
+Trigger Point does the outbound sales work of a small product company. This work has five parts:
+
+1. Decide who to sell to.
+2. Find the reason each buyer needs the product now.
+3. Reach the right person with a true, specific message.
+4. Read the reply and book the meeting.
+5. Learn from the result, and improve the plan.
+
+### Who does this job today
+- The founder does it by hand. Founders of technical products have little time and little sales experience.
+- A company hires sales staff or an agency. This costs money each month before the first meeting.
+- Tools help with one part only. A list builder finds names. A sequencer sends mail. A person must still decide who to contact and why.
+
+Most tools send the same message to a long list. Buyers ignore these messages. Trigger Point does the opposite. It contacts few accounts, and each message states a real, dated reason.
+
+### Who pays
+The founder or the company that sells the product. The service replaces a sales hire for the first customers. It also replaces the weekly work of list building and message writing.
+
+### The example we built it for
+Tulip is an AI maths tutor for school classes 6 to 10. Its first buyers are schools in Powai, Mumbai. The founders write code. They do not want to write cold email.
+
+For Tulip, a good reason to write is public: a teacher or principal posts about AI in class. Trigger Point looks for these posts, checks them, and uses them in the message. The same flow works for any product. The Tulip case is the first test.
+
+### Three rules that make it trustworthy
+- **Evidence first.** Each account must answer four questions: Why this account? Why this person? Why now? Why us? If it cannot, it is rejected with a reason.
+- **Code scores, not the model.** A model reads and writes. Deterministic code calculates every score and every check.
+- **A person decides strategy.** Autopilot handles routine steps. A founder approves each change to strategy.
+
+---
+
+## What it does now
+
+The founder enters a website and a goal once. After that, Autopilot runs the work. Each screen below comes from the running product.
+
+<p align="center">
+  <img src="assets/screens/dashboard.png" alt="The Dashboard shows the mission, the five stages, and what Autopilot did" width="92%">
+</p>
+<p align="center"><em>The Dashboard. Real run for Tulip: schools in Powai. The stages show where the mission is. The list shows what Autopilot did without a click.</em></p>
+
+### End to end, with no click from the founder
+
+| Step | What Trigger Point does | Where a person is still needed |
 |---|---|---|
-| Live website reading, sourced profile, strategy, versioned ICP | Case files and drafts on live accounts, which need a why-now signal | Client-rendered sites |
-| Human approvals held in the Office, live Crustdata discovery and people search | | CRM sync |
-| Verified outreach, sequences and schedules | | Sending to real recipients |
-| Gmail and Calendar, **test inbox only** | | Outside market research |
-| Reply reading and Wispr Flow meeting import | | |
-| The improvement loop, shown on the Learnings page | | |
+| 1. Understand | Reads the website. Builds a profile where each fact has a source. | None under Autopilot. |
+| 2. Plan | Builds the strategy and the ideal customer profile (ICP). Checks the ICP against Crustdata names. | The founder approves later changes to strategy. |
+| 3. Find accounts | Searches Crustdata for matching companies. Widens a narrow place step by step. | None. |
+| 4. Find signals | Collects dated signals: hiring, headcount, funding, and staff posts about a topic. | None. |
+| 5. Find people | Finds the person who owns the problem. Looks up contact details when the Crustdata key allows it. | None. |
+| 6. Score | Calculates a score with code. Rejects accounts that lack fresh proof. | None. |
+| 7. Write | Writes one message per person. A checker verifies each claim against its source. | None under Autopilot. |
+| 8. Send | Schedules and sends inside the allowed hours, through Gmail. | The test inbox only. Real recipients are off. |
+| 9. Reply | Reads each reply. Records a "no" with its reason. Stops mail to opt-outs. | None. |
+| 10. Book | Offers times that fit the founder's Google Calendar. Creates the meeting with a Meet link. | Built, not yet proven live (see below). |
+| 11. Learn | Imports meeting notes. Compares what worked. Proposes a plan for the next campaign. | The founder approves every change. |
 
-Current status, item by item: [docs/GTMO_AUDIT_REPORT.md](docs/GTMO_AUDIT_REPORT.md).
+### See the evidence behind every message
+<p align="center">
+  <img src="assets/screens/campaign-draft.png" alt="A campaign draft with every claim mapped to evidence" width="92%">
+</p>
+<p align="center"><em>A draft. Each claim is labelled Fact or Inference and linked to its source. The verifier log shows the check.</em></p>
 
-## How to run
+### The agents at work
+<p align="center">
+  <img src="assets/screens/live-office.png" alt="The Live office: eight agents at their desks" width="82%">
+</p>
+<p align="center"><em>The Live office. Eight Claude Code agents. Nothing moves on screen unless real work happened.</em></p>
+
+### Accounts with honest rejections
+<p align="center">
+  <img src="assets/screens/accounts.png" alt="The Accounts page lists real Powai schools with a reason for each rejection" width="92%">
+</p>
+<p align="center"><em>Real Powai schools from Crustdata. Each rejection has a reason. The score has a breakdown.</em></p>
+
+### Outreach, replies, and the reason to write now
+<p align="center">
+  <img src="assets/screens/outreach.png" alt="The Outreach page shows targets, why-now evidence, and a reply" width="92%">
+</p>
+<p align="center"><em>Each target shows its dated reason. A real reply is read from Gmail and stored without the quoted text.</em></p>
+
+### Learn from each result, then plan the next campaign
+<p align="center">
+  <img src="assets/screens/learnings.png" alt="The Learnings page shows the nine-step improvement loop" width="92%">
+</p>
+<p align="center"><em>The nine-step loop: capture, link, extract, check, propose, approve, version, measure, and keep or roll back. This screen uses labelled demo data.</em></p>
+
+<p align="center">
+  <img src="assets/screens/next-campaign-plan.png" alt="A proposed plan for the next campaign with the evidence for each change" width="92%">
+</p>
+<p align="center"><em>The next-campaign plan. Each change lists its sources. A change with one source is an experiment. The founder approves the plan.</em></p>
+
+The loop follows these rules:
+- A change needs two or more independent sources to become a lesson.
+- One source only creates an experiment. An experiment is tested, not taught.
+- Test sends and demo data never teach.
+- One target in five stays out of each change, as a comparison group.
+
+### Control and quiet mode
+<p align="center">
+  <img src="assets/screens/autopilot-settings.png" alt="Autopilot settings: credit cap, meetings wanted, meeting hours" width="46%">&nbsp;
+  <img src="assets/screens/agent-mode.png" alt="Agent mode: only meetings, what to prepare, and a chat" width="46%">
+</p>
+<p align="center"><em>Left: the limits Autopilot may use without asking. Right: agent mode. It shows only meetings, what to prepare, and a chat.</em></p>
+
+### What we proved on real accounts
+We ran each item below with real services. We list the result as it is.
+
+| Result | Status |
+|---|---|
+| Live mission for Tulip: one website and one goal, then profile, ICP, accounts, signals, people, and scores. No click. | Proven live |
+| Fixture mission with live Gmail: three messages written, verified, approved, scheduled, and sent to the test inbox. No click. | Proven live |
+| A real reply read from Gmail, stored without the quoted text. | Proven live |
+| Eight real Tulip meetings imported from Wispr Flow. 43 insights, each with a checked quote. | Proven live |
+| Three candidate lessons and one next-campaign plan from those meetings. | Proven live |
+| Seven calls to Crustdata: identify, company search, person search, job search, post search, autocomplete, account endpoints. | Proven live |
+| Real Powai schools found after we fixed the search (see [the approaches](#the-approaches-we-tried)). | Proven live |
+| Offering times and booking the Meet from a reply. | Built. Not proven live. |
+| Sending to real recipients (`OUTREACH_MODE=live`). | Built. Off by default. |
+
+### Where it still needs a person
+- **Powai schools have no public reason to write now.** Crustdata finds seven real schools. None has a fresh signal. Trigger Point rejects all seven, and it sends nothing. This is correct behavior. It shows the main gap (see [What it could do next](#what-it-could-do-next)).
+- **The calendar check needs one permission.** Autopilot must read the founder's calendar before it offers times. Add the two Calendar read tools to `permissions.allow` in `.claude/settings.json` (see [Autopilot](#autopilot)).
+- **Contact details need a Crustdata key with contact access.** The key we tested has no access to `/person/contact/enrich`. Trigger Point reports this and does not invent an address.
+- **Real sending is off.** Only the test inbox receives mail.
+
+---
+
+## What it could do next
+
+We list these in order of value. Each needs more time than this build had.
+
+1. **Find people first.** Search for teachers who post about AI, then find their school. Today we search schools first, and the signal is rare at that level.
+2. **A signal for parents.** Use only what a parent says about themself in public. Never guess age or family from a profile. The data is thin, so this needs care.
+3. **One credit budget for the whole run.** Each stage now has its own cap.
+4. **Send to real recipients.** This needs a company mail domain with correct authentication, and a live test with consent.
+5. **More channels.** A LinkedIn note, follow-up message bodies, and a phone script.
+6. **Warm paths.** Show who in the founder's network knows the buyer.
+7. **CRM sync.** Write meetings and outcomes to the founder's CRM.
+8. **Markets outside education.** The word lists that remove non-buyers lean toward schools. Other markets need their own lists.
+
+**Why not now.** Each item above needs real data we do not yet have, or a real-world step that needs a person to approve. We chose to prove the full loop first, with honest limits, instead of adding channels that we could not test.
+
+---
+
+## How to run it
 
 ### 1. What you need
-| Tool | Used for | Install |
+| Tool | Why | Install |
 |---|---|---|
-| [uv](https://docs.astral.sh/uv/) | Python 3.12 or newer and the packages (uv finds or installs the Python for you) | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
-| [Node.js](https://nodejs.org/) 20 or later, with npm | Building the Office screen | nodejs.org |
-| [Claude Code](https://code.claude.com/docs) | Runs the agents | The `claude` command must be a real program on your `PATH`. A shell alias is not enough, because the Office starts it itself. Check with `which claude` |
-| `python3` | Claude Code hooks (standard library only) | Included on macOS and most Linux |
+| [uv](https://docs.astral.sh/uv/) | Python 3.12 and the packages | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| [Node.js](https://nodejs.org/) 20 or later | Builds the screen | nodejs.org |
+| [Claude Code](https://code.claude.com/docs) | Runs the agents | The `claude` command must be a real program on your `PATH`. A shell alias does not work. Check with `which claude`. |
+| `python3` | Claude Code hooks | Included on macOS and most Linux |
 
-You need no API keys for the tests or the demo. Real data needs the keys in [Run with real data](#run-with-real-data).
+The demo needs no API key.
 
-### 2. One-time setup
+### 2. Set up once
 ```bash
 git clone https://github.com/itsArnavPrasad/trigger-point.git
 cd trigger-point
 uv sync                  # Python and the packages
 cp .env.example .env     # settings. The demo needs no keys
-claude                   # run once in this folder, accept the prompts below, then type /exit
+claude                   # run once here, accept the two prompts, then type /exit
 ```
-Claude Code ignores this project's permissions, hooks and tools until you accept two prompts the first time you start it here: the **workspace trust** dialog, and **approve the `trigger_point` server**. Check it worked:
+Claude Code ignores this project until you accept two prompts. Accept the **workspace trust** prompt. Accept the **`trigger_point` server** prompt. Then check:
 ```bash
-claude mcp list          # trigger_point should say Connected, not Pending approval
+claude mcp list          # trigger_point must say Connected
 ```
 
-### 3. Start the Office
+### 3. Start the demo
 ```bash
-scripts/office.sh --fixture   # demo: recorded data, no keys, no credits
-scripts/office.sh             # real data, as set in .env (see Run with real data)
+scripts/office.sh --fixture   # recorded data. No keys. No credits.
 ```
-- The first run installs the UI packages and builds the screen, which takes a little while. Later starts are quick.
-- Your browser opens at `http://127.0.0.1:8000/#token=...`. If it does not (non-macOS, or `TRIGGER_POINT_NO_OPEN=1`), copy the link the script prints. The token is kept in `~/.trigger-point/office-token`.
-- Leave the terminal open. Press **Ctrl+C** to stop.
-- **Restart it after you change `.env` or pull new code.** The server does not pick changes up while it runs. The screen is rebuilt for you when its source changed.
-- Everything is saved in `trigger_point.db` in this folder. To start completely fresh, stop the Office and delete that file.
+1. Wait. The first start builds the screen.
+2. Your browser opens at `http://127.0.0.1:8000/#token=...`. If it does not, copy the link from the terminal.
+3. Keep the terminal open. Press **Ctrl+C** to stop.
+4. Restart after you change `.env` or pull new code.
 
-### 4. First open: connect your tools
-When you open the Office in a new tab, a **Connect your tools** window appears if something is missing:
+### 4. Run a mission
+1. Enter `supportpilot.example` and a goal. This is a synthetic site with recorded data.
+2. Click **Connect** for Gmail and Google Calendar when the window asks. Wispr Flow is optional.
+3. Watch **Autopilot** on the Dashboard. Open **Live office** to see the agents.
+4. Open **Learnings**. Click **Add demo results**, then **Plan the next campaign**.
 
-| Tool | Needed? | What it does |
+Every screen says **FIXTURE DATA** when it uses recorded data. A live mission says **LIVE**.
+
+### 5. Run with real data
+1. Get a Hyde key and a Crustdata key.
+2. In `.env`, set `WEB_MODE`, `LLM_MODE`, and `CRUSTDATA_MODE` to `live`. Add the keys.
+3. Set `TRIGGER_POINT_TEST_RECIPIENTS` to your own address. Trigger Point sends only to this address.
+4. Raise `CRUSTDATA_RUN_CREDIT_BUDGET` (default 5) to the amount you accept to spend.
+5. Run `scripts/office.sh`. Enter your own website and goal.
+
+| Variable | Use | Note |
 |---|---|---|
-| Gmail | Yes | Sends your approved test emails and reads the replies |
-| Google Calendar | Yes | Finds your free times and books test meetings |
-| Wispr Flow | **Optional** | Reads meeting transcripts for you. Press **Skip** if you would rather paste transcripts yourself |
-
-**Connect** opens Claude's connector settings (claude.ai, Settings, Connectors). Connect the tool there, come back and press **Check again**. The first check takes about 10 seconds. You can reopen the window any time from **Integrations, Connect tools**. Skipping Wispr is remembered in your browser. The demo's research steps work without any of these; test emails and test meetings need Gmail and Calendar.
-
-### 5. Run a mission
-1. On first open you see the start form. Enter a website and a goal. For the demo use `supportpilot.example`, the synthetic site with recorded data. Later missions: the **three dots** on the top card, then **New mission**.
-2. Open **Chat** (top right) and answer the Mission Director's questions.
-3. When a step needs you, a card appears under **Needs you**. Read it, then **Approve** or **Deny**. Nothing spends credits or goes out without this click.
-4. Look around: the sidebar has a page for each stage, **Live office** shows the agents working, and **Switch to agent mode** gives a quiet view of just your meetings, what to prepare, and a chat.
-
-Every screen is labelled as fixture data when it is. A mission started with real data is labelled **LIVE**, or **PART FIXTURE** when modes are mixed.
-
-## Run with real data
-1. Get a Hyde key and a Crustdata key. Crustdata contact lookups (email and phone) need a key with contact access.
-2. In `.env`, set the three modes to `live` and add the keys, using the table below.
-3. Raise `CRUSTDATA_RUN_CREDIT_BUDGET` (default 5) to what you are happy to spend per run. Contact lookups cost about 3 credits per person it can match.
-4. Set `TRIGGER_POINT_TEST_RECIPIENTS` to your own address, so test emails have somewhere safe to go.
-5. Run `scripts/office.sh` and start a mission with your own website.
-
-API keys always come from `.env`. Modes can be overridden from the shell.
-
-| Variable | Needed for | Notes |
-|---|---|---|
-| `WEB_MODE` | Reading real websites | `live` or `replay`. No key needed |
+| `WEB_MODE` | Read real websites | `live` or `replay` |
 | `LLM_MODE` | Real extraction and drafting | `live` needs `HYDE_INFERENCE_API_KEY` |
-| `HYDE_INFERENCE_API_KEY`, `HYDE_BASE_URL`, `LLM_MODEL` | Hyde gateway | Defaults in `.env.example` |
-| `CRUSTDATA_MODE` | Real accounts, signals and people | `live` needs `CRUSTDATA_API_KEY` |
-| `CRUSTDATA_API_KEY` | Crustdata | From your Crustdata account |
-| `CRUSTDATA_API_VERSION` | Crustdata | Keep the value in `.env.example` |
-| `CRUSTDATA_RUN_CREDIT_BUDGET` | Spend cap per run | Default 5. Fails closed. Raise it to cover contact lookups |
-| `CRUSTDATA_FETCH_CONTACTS` | Buy email and phone for the buyers found | Live mode only, default `true`. Needs a key with contact access |
+| `CRUSTDATA_MODE` | Real accounts, signals, people | `live` needs `CRUSTDATA_API_KEY` |
+| `CRUSTDATA_RUN_CREDIT_BUDGET` | Spend cap for each run | Default 5. A run stops at the cap. |
+| `CRUSTDATA_FETCH_CONTACTS` | Look up email and phone | Needs a key with contact access |
+| `TRIGGER_POINT_TEST_RECIPIENTS` | Allowed recipients | Comma-separated. Empty blocks all mail. |
+| `OUTREACH_MODE` | `demo` or `live` | `demo` sends to the test recipients only. |
+| `ENABLE_EMAIL_SEND` | Safety switch | Keep `false` unless you choose live sending |
 | `DATABASE_URL` | Storage | Default `sqlite:///./trigger_point.db` |
-| `TRIGGER_POINT_TEST_RECIPIENTS` | Test email and invites | Comma-separated. Empty blocks everything |
-| `ENABLE_EMAIL_SEND`, `ENABLE_LINKEDIN_SEND` | Safety switches | Must stay `false`. `true` stops startup |
-| `TRIGGER_POINT_HOME` | Token location | Optional. Default `~/.trigger-point` |
 
-Without a Crustdata key, a live mission reads the site and builds the strategy and ICP, then stops at discovery with a clear retryable error. The header shows **PART FIXTURE** whenever modes are mixed.
+### Autopilot
+Autopilot is on by default. It answers the approval prompts that your policy covers. It chooses people, writes, schedules, sends, reads replies, and books the meeting. Open **Settings** on the Dashboard to change the credit cap, the number of meetings, the meeting length, and the hours.
 
-## Connect Claude Code
-Everything is in the repo, and no paths need editing:
-
-| File | What it does |
-|---|---|
-| `.mcp.json` | Registers the `trigger_point` MCP server (`uv run python -m trigger_point.mcp_server`) |
-| `.claude/settings.json` | Tool permissions and hooks |
-| `.claude/agents/` | Mission Director and seven specialists |
-| `scripts/office_hook.py` | Telemetry, held approvals and the send guard |
-
-Check the connection:
-```bash
-claude mcp list          # trigger_point should show Connected, not Pending approval
+For the calendar check, add these two lines to `permissions.allow` in `.claude/settings.json`:
+```json
+"mcp__claude_ai_Google_Calendar__list_calendars",
+"mcp__claude_ai_Google_Calendar__list_events"
 ```
-The **Integrations** page in the Office shows the same list.
+Autopilot always asks a person to approve strategy, lessons, experiments, and plans.
 
-## Autopilot
-
-Autopilot is on by default. It answers the approval prompts your policy covers, chooses who to contact, writes and sends the first message, reads replies, and books a Google Meet when someone says yes. If someone says no it records why on the dashboard. Pause it or open **Settings** on the dashboard to change the credit cap, meetings wanted, meeting length and meeting hours (India time, Monday to Friday). It reads your Google Calendar first, so it never offers or books a time that clashes with something else. Strategy and learning decisions always stay with you.
-
-`OUTREACH_MODE=demo` (default) stores the real emails Crustdata finds but sends every message to `TRIGGER_POINT_TEST_RECIPIENTS`. Set your own address there in `.env`. `OUTREACH_MODE=live` with `ENABLE_EMAIL_SEND=true` sends to the real person; it is unverified, so flip it only on purpose.
-
-## Test email and calendar
-Sending works only through Claude Code's Gmail and Google Calendar connectors, and only to `TRIGGER_POINT_TEST_RECIPIENTS`.
-
-1. Connect Gmail and Google Calendar (the first-open window, or **Integrations, Connect tools**).
-2. Set `TRIGGER_POINT_TEST_RECIPIENTS=you@example.com` in `.env`, then restart the Office.
-3. On the **Outreach** page, click **Add sample targets**, then write a message for one. Samples are named `SAMPLE` and are never contacted.
-4. Click **Send to test inbox**, then approve the card under **Needs you**.
-5. Still on **Outreach**, click **Book a test meeting**, then approve the card.
-
-The hook denies any other recipient, and a failure in the guard also denies. Check the spam folder: mail from a personal Gmail account can land there. Real outreach needs an authenticated company domain.
-
-## Replies, meetings and the improvement loop
-Wispr Flow is optional. Connect it the same way as Gmail (first-open window, or **Integrations, Connect tools**), or skip it and type or paste meeting notes yourself on the **Meetings** page.
-
-- **Check replies** (Outreach page) reads each sent thread. Opt-outs and bounces are handled by rule. Whether someone is interested is your click.
-- **Import from Wispr Flow** (Meetings page) reads relevant meetings. A customer statement counts only if its quote is found in the transcript. Everything else waits in **Needs your review**.
-- **Review what we learned** (Learnings page) finds what repeats across sources.
-- **Plan the next campaign** (Learnings page) turns what repeats into one proposal: ICP and messaging changes, each citing its evidence, and the next campaign to run. A change with two or more sources can become a lesson. A change with one source is labelled an experiment and is tested, not taught. Approving the plan makes one strategy version and one experiment; nothing is sent by the plan itself.
-
-Each read is held as a card for your click. To run reads without clicking, add these to `permissions.allow` in `.claude/settings.json`: `mcp__claude_ai_Gmail__get_thread`, `mcp__claude_ai_Wispr_Flow__search_meetings`, `mcp__claude_ai_Wispr_Flow__get_meeting`, `mcp__claude_ai_Wispr_Flow__get_meeting_by_calendar_id`, and the `mcp__trigger_point__` tools `list_open_threads`, `sync_replies`, `import_meeting`, `add_meeting_insights`, `get_learning_inputs`, `propose_lesson`, `write_follow_up`.
-
-**The loop:** capture, link, extract, check, propose, approve, version, measure, then keep or roll back. Approving a change creates a strategy version that new messages, strategy and ICP work receive. One target in five stays out as a comparison group.
-
-**What teaches:** real meetings, and messages you mark **I sent this myself**. Test sends never teach. To see the whole loop, run a fixture mission and use **Add demo results**; those results stay in that mission.
-
-## Commands
+### Commands
 ```bash
 uv run pytest                         # Python tests, offline
-uv run ruff check . && uv run mypy    # lint and types
+uv run ruff check src tests evals     # lint
+uv run mypy                           # types
 uv run python -m evals.run_evals      # deterministic evals
 cd office && npm test                 # UI tests
 cd office && npm run build            # type-check and build the UI
 ```
 
-## Project layout
+---
+
+## How it is built
+
+```mermaid
+flowchart LR
+    F([Founder: website + goal]) --> D[Mission Director]
+    D --> S1[ICP Strategist]
+    D --> S2[Account Scout]
+    D --> S3[Signal Analyst]
+    D --> S4[Buying Committee Mapper]
+    D --> S5[Evidence Auditor]
+    D --> S6[Campaign Architect]
+    D --> S7[Quality Gatekeeper]
+    S1 & S2 & S3 & S4 & S5 & S6 & S7 --> M[Typed MCP tools]
+    M --> B[(Trigger Point backend + SQLite)]
+    B --> C[Crustdata]
+    B --> G[Gmail and Calendar]
+    B --> W[Wispr Flow]
+    H[Hooks: approvals + send guard] -.-> D
+    B --> O[Office UI]
+    O --> F
+```
+
+### The agents
+Claude Code runs the agents. A Mission Director leads seven specialists. Each specialist has one job and a small tool list.
+
+| Agent | Job |
+|---|---|
+| Mission Director | Runs the mission. Asks the specialists. Handles Gmail and Calendar. |
+| ICP Strategist | Turns the profile into a strategy and an ideal customer profile. |
+| Account Scout | Finds companies in Crustdata. |
+| Signal Analyst | Finds dated signals for each account. |
+| Buying Committee Mapper | Finds the people who own the problem. |
+| Evidence Auditor | Checks each claim against its source. |
+| Campaign Architect | Writes the message. |
+| Quality Gatekeeper | Checks relevance, evidence, duplicates, and policy. |
+
+### Models, tools, and data
+- **Models.** Claude Code runs the agents. A Hyde gateway model (`hyde/glm-5.3-flash`) does extraction and drafting. A model never calculates a score.
+- **Tools.** The agents use typed MCP tools. The tools change state only through the backend. Gated tools wait for a human or for Autopilot policy.
+- **Hooks.** A hook holds each gated call. A send guard blocks every recipient that is not on the allowed list.
+- **Data.** SQLite stores missions, evidence, drafts, replies, meetings, lessons, and strategy versions. Every strategy change is a new version. You can roll back.
+- **Code.** Python 3.12, FastAPI, and Pydantic on the backend. React and Vite for the Office.
+- **Tests.** More than 700 Python tests, 30 deterministic evals, and the UI tests run offline.
+
+### Where it calls Crustdata
+| Call | Used for |
+|---|---|
+| `GET /account/endpoints` | Checks which endpoints the key can use. |
+| `POST /company/identify` | Excludes the seller from its own results. |
+| `POST /company/search/autocomplete` | Free. Gives the exact spelling of an industry or a place. |
+| `POST /company/search` | Finds accounts with industry, place, and size filters. |
+| `POST /person/search` | Finds the buyer at each account. |
+| `POST /job/search` | Finds hiring signals. |
+| `POST /social_post/search` | Finds staff posts about a topic. Costs 0.5 credit for each post. |
+| `POST /person/contact/enrich` | Looks up email and phone. Needs a key with contact access. |
+
+The adapter validates each request and each response. It caches results, retries with backoff, stops at the credit budget, and records a receipt for each call.
+
+---
+
+## The approaches we tried
+
+| Approach | Result | What we did |
+|---|---|---|
+| **Search by company hiring.** Look for job posts at schools. | Failed. Schools had 0 job posts and no funding. | Added a signal from staff posts about the topic. |
+| **Match a post to a school by a part of the name.** | Failed. It matched other campuses of the same chain. | Match only an exact employer name. Say "matched by name" in the evidence. |
+| **Let the model write the industry for the search.** | Failed. It wrote `primary/secondary education`. Crustdata needs exact case, so the search found nothing and fell back to coaching classes. | Resolve every name through the free autocomplete. Search both spellings. |
+| **Filter by `Powai, Mumbai, Maharashtra, India`.** | Failed. No record uses this full text. | Widen the place one part at a time, from the street to the city. Never drop the industry. |
+| **Let the model score accounts.** | Rejected. Scores changed between runs. | Score with code. The model only reads and writes. |
+| **One large agent.** | Rejected. It mixed jobs and skipped checks. | A Director with seven specialists and typed tools. |
+| **Learn from every send.** | Rejected. Test sends and demo data gave false lessons. | Learn only from real outcomes. A lesson needs two sources. |
+| **Guess a parent from age.** | Rejected. It is unsafe and unfair. | Use only what a parent says about themself. Not built yet. |
+| **A generic mass-email tool.** | Rejected. It is what buyers already ignore. | Few accounts. Each message has a dated, sourced reason. |
+
+**Why we chose the built approach.** We want a founder to trust the result without a check of every step. So we made evidence, deterministic scores, and human approval the base. Autopilot then removes the routine clicks, and it keeps the decisions that change strategy.
+
+---
+
+## More help
+
+### Project layout
 ```text
-.claude/        agents, skills, permissions, hooks
-docs/           spec, audit, roadmap, architecture, policies
+.claude/        agents, permissions, hooks
+docs/           spec, audit, architecture, policies
 evals/          deterministic evaluation cases
 fixtures/       recorded data for replay mode
-office/         Trigger Point Office UI (React, Vite)
+office/         the Office UI (React, Vite)
 scripts/        office.sh, office_hook.py, fixture tools
-src/trigger_point/     core: web, context, mission, research, scoring, cases,
-                drafts, workflow, office API, MCP server
+src/trigger_point/   web, context, mission, research, scoring, cases,
+                drafts, workflow, Office API, MCP server
 tests/          Python tests
 ```
 
-## Documentation
+### Documents
 | Read | For |
 |---|---|
-| [CLAUDE.md](CLAUDE.md) | Rules for anyone changing this code |
-| [docs/GTM_OS_PRODUCT_SPEC.md](docs/GTM_OS_PRODUCT_SPEC.md) | The target product |
-| [docs/GTMO_AUDIT_REPORT.md](docs/GTMO_AUDIT_REPORT.md) | What is true today |
-| [docs/GTMO_IMPLEMENTATION_ROADMAP.md](docs/GTMO_IMPLEMENTATION_ROADMAP.md) | Build order |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it fits together |
-| [docs/GTMO_OFFICE_UI_PLAN.md](docs/GTMO_OFFICE_UI_PLAN.md) | How the Office works |
-| [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) | Features, limits and decisions |
-| [docs/DEMO_PLAN.md](docs/DEMO_PLAN.md) | Demo script |
-| [docs/CLAUDE_CODE_SETUP.md](docs/CLAUDE_CODE_SETUP.md) | Optional plugins and working loop |
-| [docs/CLAUDE_HYDE_OPERATOR.md](docs/CLAUDE_HYDE_OPERATOR.md) | The LLM gateway |
-| [docs/OUTREACH_POLICY.md](docs/OUTREACH_POLICY.md) | Rules for external action |
+| [docs/GTMO_AUDIT_REPORT.md](docs/GTMO_AUDIT_REPORT.md) | What is true today, item by item |
+| [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) | Features, limits, and decisions |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the parts fit |
+| [docs/CRUSTDATA_INTEGRATION.md](docs/CRUSTDATA_INTEGRATION.md) | Crustdata facts we proved live |
+| [docs/OUTREACH_POLICY.md](docs/OUTREACH_POLICY.md) | Rules for outside action |
 | [docs/EVIDENCE_AND_VERIFICATION.md](docs/EVIDENCE_AND_VERIFICATION.md) | Evidence rules |
-| [docs/THIRD_PARTY_NOTICES.md](docs/THIRD_PARTY_NOTICES.md) | Licences |
+| [CLAUDE.md](CLAUDE.md) | Rules for anyone who changes this code |
 
-## Troubleshooting
-| Symptom | Fix |
+### Troubleshooting
+| Problem | Fix |
 |---|---|
-| Page says the token is missing | Open the link printed by `scripts/office.sh` |
-| `claude` not found, or agents never start | `which claude` must print a path. A shell alias is invisible to the Office. Put the real program on your `PATH` |
-| The connect window says a tool is missing, but it is connected | The first check takes about 10 seconds. Press **Check again**, or run `claude mcp list` in a terminal to see the truth |
-| I closed the connect window | **Integrations, Connect tools** opens it again |
-| I cannot find a New mission button | It is in the **three dots** menu on the top card of the Dashboard |
-| The page looks old after pulling new code | Stop the Office and run `scripts/office.sh` again. It rebuilds the screen when the sources changed
-| Port 8000 is in use | Stop the other process. The Office uses this port |
-| Agents do nothing, or every tool is denied | Run `claude` once here and accept the trust dialog |
-| `trigger_point` shows Pending approval | Run `claude` here and approve the server |
-| `trigger_point` fails to connect | Run `uv sync`, then `claude mcp list` from this folder |
-| A live mission stops at discovery | Add `CRUSTDATA_API_KEY` and set `CRUSTDATA_MODE=live` |
-| Every account is rejected with `no_fresh_why_now` | The market has no signal Crustdata can see. Schools have no job postings. See `docs/CRUSTDATA_INTEGRATION.md` |
-| `replay_missing` | Fixture mode has no recording for this site. Use `supportpilot.example` |
-| Startup fails with a send error | Set `ENABLE_EMAIL_SEND` and `ENABLE_LINKEDIN_SEND` to `false` |
-| Test email is blocked | Add the address to `TRIGGER_POINT_TEST_RECIPIENTS` and restart |
+| The page says the token is missing | Open the link that `scripts/office.sh` prints. |
+| Agents do nothing, or every tool is denied | Run `claude` once here. Accept the trust prompt. |
+| `trigger_point` shows Pending approval | Run `claude` here. Approve the server. |
+| The page looks old after a pull | Stop the Office. Run `scripts/office.sh` again. |
+| Port 8000 is in use | Stop the other process. Check with `lsof -i :8000`. |
+| A live mission stops at discovery | Set `CRUSTDATA_API_KEY` and `CRUSTDATA_MODE=live`. |
+| Every account is rejected with `no_fresh_why_now` | The market has no public signal. This is correct. See [Where it still needs a person](#where-it-still-needs-a-person). |
+| Autopilot waits and never replies | Add the two Calendar read tools to `permissions.allow`. |
+| Test email is blocked | Add the address to `TRIGGER_POINT_TEST_RECIPIENTS`. Restart. |
+| `replay_missing` | Fixture mode has no recording for this site. Use `supportpilot.example`. |
 
-## Safety rules
-- Real recipients cannot be contacted. Outreach stays draft-only outside the test inbox.
-- Every approval binds the exact content. Editing the text cancels it.
-- Unknown stays unknown. Nothing invents a person, signal, source or proof point.
-- Scores are computed by deterministic code, never by a model.
-- The API binds to loopback and is not safe to host.
-- Never commit `.env`, keys, personal contact data or real prospect exports.
+### Safety rules
+- Real recipients do not receive mail. Mail goes only to the test addresses.
+- An approval binds to the exact text. If you edit the text, the approval is void.
+- Unknown stays unknown. Trigger Point does not invent a person, a signal, or a source.
+- Code calculates every score.
+- The API listens on the local machine only. Do not host it.
+- Never commit `.env`, keys, personal data, or real prospect lists.
 
-## Licence
-Office art comes from [Claude Office](https://github.com/W17ant/Claude-Office) under the MIT licence. See [docs/THIRD_PARTY_NOTICES.md](docs/THIRD_PARTY_NOTICES.md).
+### Licence
+The Office art comes from [Claude Office](https://github.com/W17ant/Claude-Office) under the MIT licence. See [docs/THIRD_PARTY_NOTICES.md](docs/THIRD_PARTY_NOTICES.md).
