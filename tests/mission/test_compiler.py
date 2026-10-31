@@ -88,6 +88,38 @@ def test_requesting_funding_is_opt_in_by_signal_type() -> None:
     assert "funding" in (wanting.fields or [])
 
 
+def test_topic_keywords_are_cleaned_deduplicated_and_capped() -> None:
+    messy = ["AI", " ai ", "edtech  ", "", "x" * 100, "a", "b", "c", "d", "e", "f"]
+    plan = compile_plan(
+        draft(signal_types=["topic_engagement"], topic_keywords=messy),
+        seller_domain="s.example",
+        credit_budget=5.0,
+    )
+    assert plan.topic_keywords[:2] == ["AI", "edtech"]
+    assert len(plan.topic_keywords) == 6
+    assert all(0 < len(k) <= 40 for k in plan.topic_keywords)
+
+
+def test_topic_engagement_is_a_known_signal_with_its_own_window() -> None:
+    plan = compile_plan(
+        draft(signal_types=["topic_engagement"], topic_keywords=["AI"]),
+        seller_domain="s.example",
+        credit_budget=5.0,
+    )
+    assert plan.signal_types == ["topic_engagement"]
+    assert plan.freshness_days["topic_engagement"] == 120
+
+
+def test_topic_engagement_with_no_topic_is_dropped_and_says_so() -> None:
+    plan = compile_plan(
+        draft(signal_types=["topic_engagement", "active_hiring"], topic_keywords=[]),
+        seller_domain="s.example",
+        credit_budget=5.0,
+    )
+    assert plan.signal_types == ["active_hiring"]
+    assert any("topic_engagement" in a and "keywords" in a for a in plan.assumptions)
+
+
 def test_compilation_is_deterministic() -> None:
     a = compile_search_request(compile_plan(draft(), seller_domain="s.example", credit_budget=5.0))
     b = compile_search_request(compile_plan(draft(), seller_domain="s.example", credit_budget=5.0))

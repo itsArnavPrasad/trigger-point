@@ -15,13 +15,14 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from trigger_point.mission.models import Mission
+from trigger_point.mission.models import GTMPlan, Mission
 from trigger_point.mission.service import CallRecord, DiscoveryRun
 from trigger_point.models.context import Mode
 from trigger_point.models.evidence import Evidence, evidence_id
 from trigger_point.providers.crustdata.client import (
     JOB_CREDITS_PER_RESULT,
     PERSON_CREDITS_PER_RESULT,
+    POST_CREDITS_PER_RESULT,
     CreditBudget,
     CrustdataClient,
 )
@@ -34,11 +35,13 @@ from trigger_point.research.people import (
     compile_people_request,
     match_people,
 )
+from trigger_point.research.posts import compile_post_request
 from trigger_point.research.scoring import PeopleOutcome, ScoreBreakdown, rank, score_account
 from trigger_point.research.signals import (
     Signal,
     signals_from_company,
     signals_from_postings,
+    signals_from_posts,
     wants_postings,
 )
 from trigger_point.store.db import Store
@@ -46,6 +49,7 @@ from trigger_point.store.db import Store
 PEOPLE_TOP_N = 5
 JOBS_PER_ACCOUNT = 5
 PEOPLE_PER_ACCOUNT = 3
+POSTS_PER_ACCOUNT = 3
 DEGRADABLE = {"budget_exceeded", "permission", "fields_denied"}
 
 
@@ -274,7 +278,10 @@ class ResearchService:
                 e for e in posting_signals.evidence if e.entity_id == str(a.provider_company_id)
             ]
             per[a.provider_company_id] = (sigs, evs)
-        run.signals_collected = jobs_collected or any(per[i][0] for i in ids)
+        posts_searched = False
+        if "topic_engagement" in plan.signal_types and plan.topic_keywords:
+            posts_searched = self._collect_topic_posts(run, client, budget, plan, accounts, per)
+        run.signals_collected = jobs_collected or posts_searched or any(per[i][0] for i in ids)
 
         results: dict[int, AccountResearch] = {}
         for a in accounts:
@@ -299,6 +306,43 @@ class ResearchService:
             )
         order = rank([(cid, r.score) for cid, r in results.items()])
         run.accounts = [results[cid] for cid, _ in order]
+
+    def _collect_topic_posts(
+        self,
+        run: ResearchRun,
+        client: CrustdataClient,
+        budget: CreditBudget,
+        plan: GTMPlan,
+        accounts: list[Company],
+        per: dict[int, tuple[list[Signal], list[Evidence]]],
+    ) -> bool:
+        """What each account's own staff post in public. Billed per post returned, so each search
+        asks for a few, names the topic in the query, and stops when the budget cannot buy one."""
+        searched = False
+        found = 0
+        for a in accounts:
+            limit = _affordable(budget, POST_CREDITS_PER_RESULT, POSTS_PER_ACCOUNT)
+            if limit < 1:
+                run.notes.append("post search skipped: credit budget exhausted")
+                break
+            req = compile_post_request(a, plan, run.reference_date, limit)
+            if req is None:
+                continue
+            try:
+                posts = client.search_posts(req).data.posts
+            except CrustdataError as exc:
+                if exc.kind not in DEGRADABLE:
+                    raise
+                run.notes.append(f"post search unavailable: {exc.kind}")
+                break
+            searched = True
+            sigs, evs = signals_from_posts(a, posts, plan, run.reference_date)
+            found += len(sigs)
+            cid = a.provider_company_id
+            per[cid] = ([*per[cid][0], *sigs], [*per[cid][1], *evs])
+        if searched:
+            run.notes.append(f"topic posts: {found} account(s) with staff posting about the topic")
+        return searched
 
     def _map_people(
         self, run: ResearchRun, client: CrustdataClient, budget: CreditBudget, mission: Mission

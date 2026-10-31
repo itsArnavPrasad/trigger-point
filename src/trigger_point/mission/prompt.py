@@ -8,7 +8,7 @@ from trigger_point.mission.models import SIGNAL_TYPES
 from trigger_point.models.context import CLAIM_LIST_FIELDS, BusinessContext
 from trigger_point.providers.crustdata.models import ROLE_FUNCTIONS
 
-PROMPT_VERSION = "mission-prompt-v2"
+PROMPT_VERSION = "mission-prompt-v3"
 
 MISSION_SYSTEM_PROMPT = f"""\
 You turn a seller's approved business context and revenue goal into a target-market hypothesis \
@@ -36,7 +36,13 @@ usually post nothing Crustdata can see.
 as above; needs an organisation with a tracked professional-network presence.
   - recent_funding: a dated funding round. Only applies to companies that raise outside capital; \
 never choose it for schools, nonprofits, government bodies or bootstrapped small businesses.
-  Pick only signal_types you expect this buyer type to actually have. If none of the four \
+  - topic_engagement: people at the buyer organisation publicly posting, in their own words and \
+within the last months, about a topic that shows they are open to what the seller sells. Each \
+post is dated and has a public link. This works for buyers that hiring and funding data do not \
+cover, such as schools, clinics, agencies and local firms, as long as their staff post on a \
+professional network. It needs topic_keywords. For an AI tutor sold to schools, a teacher who \
+posts about AI is a stronger reason to reach out than the school merely existing.
+  Pick only signal_types you expect this buyer type to actually have. If none of them \
 realistically applies, leave signal_types empty and say so in open_questions or assumptions \
 instead of guessing: an empty, honest list is better than one that will find nothing.
 - exclusions: companies that must not be targeted (competitors, partners the seller depends \
@@ -44,6 +50,11 @@ on, existing customers named in the context). One company per item, written as \
 "Name (domain.com)" when the domain is known; no explanations.
 - tech_keywords: up to 6 product names the seller integrates with or replaces, exactly as \
 written in the context (e.g. "Zendesk"). Job postings that name them are evidence of fit.
+- topic_keywords: up to 6 short topics or phrases that someone at the buyer would post about if \
+they were open to what the seller sells, worded as they would write them (for an AI maths tutor \
+sold to schools: "AI", "edtech", "digital learning"). Never the seller's own name or product. \
+Code searches public posts for these and checks each post really says one. Leave empty unless \
+topic_engagement is chosen.
 - dimensions: what the context says about any of these ICP dimensions: operational, problem, \
 value, budget, readiness, buying_process, economics. One short sentence each. Leave a dimension \
 out when the context does not support it; never guess.

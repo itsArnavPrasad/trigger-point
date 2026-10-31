@@ -98,3 +98,16 @@ export const RESULT_TEXT: Record<string, string> = {
 export function percent(rate: number, n: number): string {
   return n ? `${Math.round(rate * 100)}%` : 'Unknown'
 }
+
+const SIGNAL_LABELS: Record<string, string> = {
+  topic_engagement: 'Staff post about the topic',
+  recent_funding: 'Recent funding',
+  active_hiring: 'Hiring now',
+  support_team_growth: 'Hiring into the target team',
+  headcount_growth: 'Headcount growth',
+}
+
+/** A signal type in the words a person would use. An unknown type still shows, just less polished. */
+export function signalLabel(type: string): string {
+  return SIGNAL_LABELS[type] ?? type.replaceAll('_', ' ')
+}

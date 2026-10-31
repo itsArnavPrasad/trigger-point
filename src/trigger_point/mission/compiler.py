@@ -151,16 +151,16 @@ def _exclusions(items: list[str]) -> tuple[list[str], list[str]]:
     return sorted(domains), sorted(names)
 
 
-MAX_TECH_KEYWORDS = 6
+MAX_KEYWORDS = 6
 
 
-def _tech_keywords(items: list[str]) -> list[str]:
+def _keywords(items: list[str]) -> list[str]:
     out: list[str] = []
     for item in items:
         kw = " ".join(item.split())[:40]
         if kw and kw.casefold() not in {k.casefold() for k in out}:
             out.append(kw)
-    return out[:MAX_TECH_KEYWORDS]
+    return out[:MAX_KEYWORDS]
 
 
 def _employee_ranges(lo: int | None, hi: int | None) -> list[str]:
@@ -179,6 +179,13 @@ def compile_plan(draft: MissionDraft, seller_domain: str, credit_budget: float) 
             signals.append(s)  # type: ignore[arg-type]
         elif s not in SIGNAL_TYPES:
             notes.append(f"Dropped unsupported signal type {s!r}.")
+    topic_keywords = _keywords(draft.topic_keywords)
+    if "topic_engagement" in signals and not topic_keywords:
+        signals.remove("topic_engagement")
+        notes.append(
+            "Dropped signal type 'topic_engagement': it searches public posts for topic "
+            "keywords, and none were given."
+        )
     personas = []
     for p in draft.personas:
         fn = p.function if p.function in ROLE_FUNCTIONS else None
@@ -199,7 +206,8 @@ def compile_plan(draft: MissionDraft, seller_domain: str, credit_budget: float) 
         signal_types=signals,
         excluded_domains=domains,
         excluded_names=names,
-        tech_keywords=_tech_keywords(draft.tech_keywords),
+        tech_keywords=_keywords(draft.tech_keywords),
+        topic_keywords=topic_keywords,
         max_accounts=max_accounts,
         credit_budget=credit_budget,
         freshness_days={s: DEFAULT_FRESHNESS_DAYS[s] for s in signals},

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentLabel, elapsed, flowSteps, liveness, modeLabel, percent, permissionLabel, safeHref, tokenFromHash } from './logic'
+import { agentLabel, elapsed, flowSteps, liveness, modeLabel, percent, permissionLabel, safeHref, signalLabel, tokenFromHash } from './logic'
 import type { MissionView } from './types'
 
 const view = (over: Partial<MissionView> & { state?: string } = {}) => ({
@@ -67,5 +67,15 @@ describe('percent', () => {
     expect(percent(0, 0)).toBe('Unknown')
     expect(percent(0.256, 8)).toBe('26%')
     expect(percent(0, 8)).toBe('0%')
+  })
+})
+
+describe('signalLabel', () => {
+  it('says what a signal means in plain words', () => {
+    expect(signalLabel('topic_engagement')).toBe('Staff post about the topic')
+    expect(signalLabel('recent_funding')).toBe('Recent funding')
+  })
+  it('falls back to the type itself, never to a blank', () => {
+    expect(signalLabel('some_new_signal')).toBe('some new signal')
   })
 })
