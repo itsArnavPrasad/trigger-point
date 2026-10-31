@@ -9,10 +9,12 @@ An evidence-first GTM operating system. Give it a website and a revenue goal. It
 ## What works
 | Works | On fixtures only | Not built |
 |---|---|---|
-| Live website reading, sourced profile, strategy, versioned ICP | Crustdata accounts, signals and people (needs a key) | Wispr Flow meeting import |
-| Human approvals held in the Office | Case files and scores on live accounts | CRM sync |
-| Verified outreach per audience | | Reply reading and scheduled sending |
+| Live website reading, sourced profile, strategy, versioned ICP | Case files and drafts on live accounts, which need a why-now signal | Client-rendered sites |
+| Human approvals held in the Office, live Crustdata discovery and people search | | CRM sync |
+| Verified outreach, sequences and schedules | | Sending to real recipients |
 | Gmail and Calendar, **test inbox only** | | Outside market research |
+| Reply reading and Wispr Flow meeting import | | |
+| The improvement loop, shown on the Learning page | | |
 
 Current status, item by item: [docs/GTMO_AUDIT_REPORT.md](docs/GTMO_AUDIT_REPORT.md).
 
@@ -28,8 +30,8 @@ No API keys are needed for the tests or the fixture demo.
 
 ## Quick start: fixture demo
 ```bash
-git clone https://github.com/anmolsureka30/whynoww.git
-cd whynoww
+git clone https://github.com/itsArnavPrasad/trigger-point.git
+cd trigger-point
 uv sync
 cp .env.example .env
 scripts/office.sh --fixture
@@ -95,6 +97,19 @@ Sending works only through Claude Code's Gmail and Google Calendar connectors, a
 
 The hook denies any other recipient, and a failure in the guard also denies. Check the spam folder: mail from a personal Gmail account can land there. Real outreach needs an authenticated company domain.
 
+## Replies, meetings and the improvement loop
+Connect Wispr Flow in your claude.ai connector settings, the same way as Gmail.
+
+- **Check replies** (Outreach page) reads each sent thread. Opt-outs and bounces are handled by rule. Whether someone is interested is your click.
+- **Import from Wispr Flow** (Meetings page) reads relevant meetings. A customer statement counts only if its quote is found in the transcript. Everything else waits in **Needs your review**.
+- **Review what we learned** (Learning page) finds what repeats across sources.
+
+Each read is held as a card for your click. To run reads without clicking, add these to `permissions.allow` in `.claude/settings.json`: `mcp__claude_ai_Gmail__get_thread`, `mcp__claude_ai_Wispr_Flow__search_meetings`, `mcp__claude_ai_Wispr_Flow__get_meeting`, `mcp__claude_ai_Wispr_Flow__get_meeting_by_calendar_id`, and the `mcp__trigger_point__` tools `list_open_threads`, `sync_replies`, `import_meeting`, `add_meeting_insights`, `get_learning_inputs`, `propose_lesson`, `write_follow_up`.
+
+**The loop:** capture, link, extract, check, propose, approve, version, measure, then keep or roll back. Approving a change creates a strategy version that new messages, strategy and ICP work receive. One target in five stays out as a comparison group.
+
+**What teaches:** real meetings, and messages you mark **I sent this myself**. Test sends never teach. To see the whole loop, run a fixture mission and use **Add demo results**; those results stay in that mission.
+
 ## Commands
 ```bash
 uv run pytest                         # Python tests, offline
@@ -143,6 +158,7 @@ tests/          Python tests
 | `trigger_point` shows Pending approval | Run `claude` here and approve the server |
 | `trigger_point` fails to connect | Run `uv sync`, then `claude mcp list` from this folder |
 | A live mission stops at discovery | Add `CRUSTDATA_API_KEY` and set `CRUSTDATA_MODE=live` |
+| Every account is rejected with `no_fresh_why_now` | The market has no signal Crustdata can see. Schools have no job postings. See `docs/CRUSTDATA_INTEGRATION.md` |
 | `replay_missing` | Fixture mode has no recording for this site. Use `supportpilot.example` |
 | Startup fails with a send error | Set `ENABLE_EMAIL_SEND` and `ENABLE_LINKEDIN_SEND` to `false` |
 | Test email is blocked | Add the address to `TRIGGER_POINT_TEST_RECIPIENTS` and restart |
