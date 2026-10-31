@@ -58,6 +58,15 @@ Suggested internal methods (match to official schemas during implementation):
 
 **Coverage limit for schools.** Eleven Mumbai schools had 0 job postings at any date and no funding round (expected: schools do not raise venture funding). A `news` web search for one school returned no results. Web and news results have no date field, so a result proves no event date on its own: `start_date` narrows the search, and a date would have to come from fetching the page. This is a real data-coverage limit for this vertical, not a bug: Crustdata's dated signals (hiring, funding) are built for venture-backed and larger organisations. The mission prompt (`mission/prompt.py`) now tells the ICP Strategist to leave `signal_types` empty, rather than guess, when none plausibly applies to the stated buyer type.
 
+**Proven live, 31 October 2026** (through the adapter, `x-api-version: 2025-11-01`):
+- **Endpoint probe, identify, company search and post search all work live** on this account.
+- **The merged industry+place filters return real schools.** `locations.headquarters (.) Mumbai` AND `basic_info.industries in ["Primary and Secondary Education"]` returned Dhirubhai Ambani International School and JBCN Borivali among 5 results, charged 1.15 credits (estimate 2.15).
+- **Post search is billed per post, not per request:** 10 posts cost 5 credits (0.5 each). A people-first run must budget by result count, not calls.
+- **Precision gaps found live, to fix in discovery:**
+  - The `(.)` fuzzy place filter leaks other countries: a Dubai school appeared in the Mumbai filter results. Filter results need a post-filter country/city check on the returned record, not trust in the filter alone.
+  - Post search with `actor.location.city (.) Mumbai` + `text (.) edtech` returns recruiters, sales-hiring posts and UAE founders. Employer type is not filtered by the API on posts, so buyer-vs-seller judgement on the returned records (author title and employer) has to happen in code.
+  - `industries` on returned company records came back empty even when the filter matched on `basic_info.industries`; do not rely on it as a returned field — use the filter for matching and basic_info `description`/name for display.
+
 ## REST vs MCP
 **Status:** live. Identify, company search, job search and person search are proven through the adapter. Trigger Point does not use the Crustdata plugin MCP: agents have no route around the adapter.
 
