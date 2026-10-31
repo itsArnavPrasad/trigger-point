@@ -1,0 +1,122 @@
+# Crustdata Integration Plan
+
+## Role in Trigger Point
+Crustdata is the canonical identity and B2B signal data layer, not the product's decision engine. Trigger Point owns its normalized domain model, qualification policy, evidence verifier, campaign logic, state, and user experience.
+
+## First checks
+Before implementing endpoints, confirm which endpoints the hackathon/API key actually permits. Do not assume all features, datasets, contact fields, or live endpoints are enabled.
+
+- API base URL and exact request/response schemas must come from current official docs.
+- Authentication header: `authorization: Bearer <API_KEY>`.
+- API version header shown in the brief: `x-api-version: 2025-11-01`.
+- Check endpoint access and current credit rules at runtime where the account API supports it.
+- Never hard-code a price table without timestamping it and allowing provider pricing to change.
+
+## Recommended call sequence
+1. **Company identify** from seller/prospect domain when useful; use identity resolution before costly enrichment.
+2. **Company search** using a compiled ICP query and broad enough limits.
+3. Normalize and deduplicate results by canonical provider ID/domain.
+4. Apply deterministic hard filters and cheap fit rules.
+5. **Company enrich** only the shortlist.
+6. Collect signal evidence with Job Search, company fields, social posts, or live web search only where enabled and relevant.
+7. **Person search** for the pain-owner persona; avoid defaulting to CEO.
+8. Enrich only selected contacts; verify current role as supported by the available data.
+9. Use Watchers only after the core run works; define baseline, trigger, webhook handling, and test event behavior.
+10. Capture usage headers/receipts and persist raw response hashes plus normalized records.
+
+## Provider implementation
+Create `CrustdataClient` with typed methods and a `CrustdataProvider` adapter. Do not let LLM-generated URLs, arbitrary endpoint paths, or free-form request bodies reach the HTTP client. Expose only allowlisted methods with schema validation.
+
+Suggested internal methods (match to official schemas during implementation):
+- `identify_company(domain_or_url)`
+- `search_companies(plan_filters, limit)`
+- `enrich_company(provider_company_id, fields)`
+- `search_people(company_id, persona_filters, limit)`
+- `enrich_person(provider_person_id, fields)`
+- `search_jobs(filters, limit)`
+- `search_web(query)` / `fetch_web(url)` when supported
+- `create_company_watcher(config)` and `create_person_watcher(config)` when supported
+- `get_endpoint_access()` if available to the key
+
+## Reliability
+- Cache idempotent reads with endpoint-aware TTLs.
+- Cap concurrency and implement 429 handling with exponential backoff and jitter.
+- Distinguish no results from provider failure and endpoint not enabled.
+- Validate response schema and preserve `updated_at`, source fields, and provider IDs.
+- Store `X-Credits-Used` or equivalent usage metadata only when actually returned.
+- Avoid retrying non-idempotent watcher-creation calls without an idempotency strategy.
+- Never fabricate a credit estimate; mark it estimated and reconcile against actual usage.
+
+## REST vs MCP
+**Status:** no call to api.crustdata.com has run yet, because `CRUSTDATA_API_KEY` is empty. The Crustdata plugin MCP is connected to Claude Code, but Trigger Point does not use it: agents have no route around the adapter.
+
+Use direct REST for the demo's critical path because it gives deterministic calls, typed contracts, predictable errors, and explicit budgets. Crustdata's MCP server is useful for exploratory work and developer productivity, but an LLM-selected tool path should not be the only execution route for a judged workflow. MCP may be added as an optional adapter later.
+
+## Official references
+- API docs: https://docs.crustdata.com/
+- Skills: https://github.com/crustdata/skills
+- MCP docs: https://docs.crustdata.com/general/mcp
+- Official sales outreach skill: https://github.com/crustdata/skills/tree/main/skills/sales-outreach
+- Pricing: https://docs.crustdata.com/general/pricing.md
+- Data updates: https://docs.crustdata.com/general/data-updates.md
+- Watcher cross-dataset filters: https://docs.crustdata.com/watcher-docs/cross-dataset-filters.md
+
+## Verified API facts (from docs.crustdata.com, API version `2025-11-01`)
+
+These came from the public API reference pages, which embed the OpenAPI spec. The raw `openapi-specs/*.yaml` files redirect to a login page. **None of this has been exercised live yet:** no API key has been available.
+
+- **Base URL and headers.** Base URL is `https://api.crustdata.com`. Every request sends `authorization: Bearer <key>`, `x-api-version: 2025-11-01` and `content-type: application/json`. The version header is required; omitting it can float to a newer version.
+- **Endpoints in use** (all `POST`):
+  - `/company/identify`: free, 30 rpm.
+  - `/company/search`: 0.03 credits per result plus premium groups, 30 rpm.
+  - `/company/enrich`: 2–4 credits per record.
+  - `/person/search`: 0.03 credits per result plus premium groups.
+  - `/job/search`: 0.03 credits per result.
+  - `/web/search/live` and `/web/enrich/live`: 1 credit each.
+  - `GET /account/endpoints` (**free**): per-endpoint `status` (enabled/disabled), enabled and disabled response fields, `effective_rate_limit_rpm` and `base_credits`. This is the capability probe to run before planning a run.
+  - `GET /account/credits`: free.
+- **Identify.**
+  - The body takes exactly one of `names | domains | crustdata_company_ids | professional_network_profile_urls`, with 1–25 values, plus optional `exact_match` and `fields` ⊂ {`crustdata_company_id`, `basic_info`, `social_profiles`}.
+  - The response is a top-level array of `{matched_on, match_type, matches:[{confidence_score, company_data:{crustdata_company_id, basic_info{…}}}]}`.
+  - No match is a 200 response with `matches: []`. That is distinct from an error.
+  - **One exact domain can return several records with `confidence_score: 1`.** The documented example is `cashfree.com`, which returns the parent plus two showcase pages. Identity resolution must therefore treat more than one top-confidence match as *ambiguous*, not pick the first.
+- **Search filters.**
+  - Filters are `{field, type, value}` or `{op: and|or, conditions:[…]}`.
+  - Operators are `=`, `!=`, `<`, `=<`, `>`, `=>`, `in`, `not_in`, `is_null`, `is_not_null`, `(.)` (fuzzy) and `[.]` (exact token). Note `=<` and `=>`, **not** `<=` and `>=`.
+  - Optional `search: {query, mode: hybrid|lexical|semantic}` takes the natural-language ICP. When combined with ranked search, filters act as hard constraints.
+  - Cursor pagination. Ranked search pages hold at most 100 results, and its cursors expire after 20 minutes.
+  - `total_count` is always null for ranked search.
+  - A requested group with no data comes back as `null`.
+- **Company search signal fields.**
+  - `hiring.openings_count` and `hiring.openings_growth_percent`.
+  - `headcount.growth_percent.{1m,3m,6m,12m}`.
+  - `roles.growth_6m.customer_success_and_support`.
+  - `funding.last_fundraise_date` and `funding.last_round_type`.
+- **Job search.** `metadata.date_added` is the **job-posted date** (the event date). `metadata.date_updated` is the last refresh. No field says a posting is still open, so "currently hiring" must be phrased with `date_updated` as last-seen evidence.
+- **Data freshness.** Indexed records are refreshed every 1–30 days, and each carries `updated_at`. Live endpoints are enterprise-only or an add-on.
+- **Errors.**
+  - The canonical shape is `{error:{type, message, metadata[]}}`, with `type` one of invalid_request, authentication_error, unauthorized, insufficient_credits, permission_error, rate_limit_error, internal_error.
+  - 401 can instead be `{message}`, and the intro page shows `{error, description}`. **The adapter must parse all three shapes.**
+  - 402 `insufficient_credits` (which also covers a per-key monthly cap) is terminal: do not retry.
+  - 403 `permission_error` is terminal, but a 403 that names `denied_fields` can be retried once with a narrower `fields` list.
+  - 429 should be retried after `x-ratelimit-reset` seconds plus jitter.
+- **Headers.**
+  - `X-Credits-Used` is a decimal string giving exact credits deducted. It is present on successes and errors, and **absent** on 429s generated before the request reaches the API.
+  - `x-ratelimit-limit`, `x-ratelimit-remaining` and `x-ratelimit-reset` work on a sliding window.
+
+### Notes
+- `GET /account/endpoints` exists and is free.
+- The YALC reference adapter uses legacy endpoints and `Token` auth. Do not use it as a schema reference (see `REPO_NOTES.md`).
+
+### Job and Person search (from the docs; not yet called live)
+- **`POST /job/search`**
+  - Filter fields include `company.basic_info.company_id`, `job_details.title`/`category`, `metadata.date_added`/`date_updated`, `content.description`, and the posting-scoped `technographics.technologies.*` (values case-sensitive; discover with `/job/search/autocomplete`).
+  - **Responses name the company id `company.basic_info.crustdata_company_id`.** Trigger Point reads both names.
+  - `date_added` is the posting date (the event); `date_updated` is the last refresh. Nothing indicates whether a posting is still open.
+  - 0.03 credits per result.
+- **`POST /person/search`**
+  - Filter on `experience.employment_details.current.company_id` / `.title` / `.seniority_level` / `.function_category`.
+  - Responses carry `experience.employment_details.current[].crustdata_company_id`, `social_handles.professional_network_identifier.profile_url` and `metadata.updated_at`.
+  - Price: 0.03 base plus 0.1 for filtering on `experience` plus 0.1 for receiving it, so 0.23 per result.
+  - Trigger Point requests a fixed minimal field list and **never** contact data.
+- **Company search `roles.*` fields are filter-only** (they cannot be selected). `hiring.*` can be returned but not filtered on.
