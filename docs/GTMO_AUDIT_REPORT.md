@@ -5,7 +5,7 @@ _Current truth, measured against `docs/GTM_OS_PRODUCT_SPEC.md`. A status changes
 ## 1. Executive summary
 Trigger Point runs one complete path under real Claude Code from the Office: website, sourced profile, strategy, versioned ICP, accounts, signals, a buyer, a case file, verified outreach, hash-bound approval, and a test send and meeting. What comes back feeds a closed loop: replies and meetings become reviewed insights, then lessons, then a versioned change that future work receives and that is measured against a holdout.
 
-- **Score:** of 138 checklist items, 66 are working, 53 partial, 19 missing, 0 broken, 0 unverified and 0 not applicable.
+- **Score:** of 138 checklist items, 67 are working, 52 partial, 19 missing, 0 broken, 0 unverified and 0 not applicable.
 - **Biggest blocker:** finding a "why now" for Indian schools. Live discovery returns real Mumbai schools, but Crustdata holds no job postings for them, so each is rejected with `no_fresh_why_now`. Case files and drafts on live accounts stay unproven until a real signal exists.
 - **Biggest missing area:** outside market research.
 - **The loop has not run on real results.** It is proven end to end on labelled fixture data. Test sends never teach, so it needs real sends you log or real meetings.
@@ -35,12 +35,12 @@ Trigger Point runs one complete path under real Claude Code from the Office: web
 | 6. Account discovery and identity resolution | 10 | 7 | 2 | 1 | 0 | 0 | 0 |
 | 7. Buying signals and account research | 10 | 4 | 6 | 0 | 0 | 0 | 0 |
 | 8. GTM motion, channel, and campaign planning | 12 | 11 | 1 | 0 | 0 | 0 | 0 |
-| 9. Meeting and customer feedback loop | 11 | 7 | 3 | 1 | 0 | 0 | 0 |
+| 9. Meeting and customer feedback loop | 11 | 8 | 2 | 1 | 0 | 0 | 0 |
 | 10. Self-improvement and organizational learning | 15 | 12 | 3 | 0 | 0 | 0 | 0 |
 | 11. Pipeline, meetings, and CRM | 8 | 1 | 4 | 3 | 0 | 0 | 0 |
 | 12. Finance and unit economics | 9 | 1 | 5 | 3 | 0 | 0 | 0 |
 | 13. GTM Office interface and observability | 13 | 5 | 8 | 0 | 0 | 0 | 0 |
-| **Total** | **138** | **66** | **53** | **19** | **0** | **0** | **0** |
+| **Total** | **138** | **67** | **52** | **19** | **0** | **0** | **0** |
 
 ## 4. Evidence for every item
 Effort: S under 1 day, M 1 to 3 days, L 3 to 10 days, XL 2 weeks or more. These are ranges, not commitments.
@@ -139,8 +139,8 @@ Effort: S under 1 day, M 1 to 3 days, L 3 to 10 days, XL 2 weeks or more. These 
 
 | Item | Status | Sev | Effort | Evidence | Missing |
 |---|---|---|---|---|---|
-| Search for product- and ICP-relevant signals | PARTIAL | P1 | L | Job postings, headcount and funding via `research/signals.py`, proven live. | Web and social sources. |
-| Funding, hiring, expansion, leadership, launches, tech, regulation, statements | PARTIAL | P1 | L | Hiring, headcount and funding, proven live: `crustdata.com`'s real seed round was read with a correct date. | Expansion, leadership, launches, regulation, statements: need web or social search. |
+| Search for product- and ICP-relevant signals | PARTIAL | P1 | L | Job postings, headcount, funding and staff posts via `research/signals.py`, proven live. A staff post is dated, linked, and checked in code for the keyword and the exact employer name. | Leadership change, launches and regulation. |
+| Funding, hiring, expansion, leadership, launches, tech, regulation, statements | PARTIAL | P1 | L | Hiring, headcount, funding and public staff statements, proven live on real Mumbai educators. | Expansion, leadership, launches, regulation. |
 | Explain the link between signal and need | PARTIAL | P2 | M | Case hypotheses labelled inference. | Per-signal rationale. |
 | Store URL, title, publisher, publication and event dates, retrieval, excerpt, entity, status | PARTIAL | P1 | M | `Evidence` and `EvidenceRecord`. No title or publication date. | Two fields. |
 | Distinguish event date from retrieval date | WORKING | - | - | `event_on`, `as_of`, `retrieved_at`; `test_no_date_is_undated_and_retrieval_time_never_stands_in`. | - |
@@ -175,7 +175,7 @@ Effort: S under 1 day, M 1 to 3 days, L 3 to 10 days, XL 2 weeks or more. These 
 | Verify real connection and read permissions | WORKING | - | - | `claude mcp list` drives the Integrations page; a real meeting was read. Wispr is read only. | - |
 | Match a meeting to account, people, opportunity, campaign | PARTIAL | P1 | L | Calendar id or a target name in the record links it; anything else goes to the review queue. `tests/workflow/test_feedback.py`. | People and opportunity matching. |
 | Import notes, summaries, transcripts, attendees, actions | WORKING | - | - | `import_meeting` reads the captured notes, summary and full transcript across cut-off parts. Attendees are stored when Wispr returns them. | - |
-| Extract pains, outcomes, objections, budget, urgency, process, next steps | PARTIAL | P1 | L | `add_meeting_insights` with ten kinds; validated in code. | A full Director run on a real meeting. |
+| Extract pains, outcomes, objections, budget, urgency, process, next steps | WORKING | - | - | `add_meeting_insights` with ten kinds. A real Director run on a real Wispr account read two meetings in full, extracted 9 insights, and code verified 7 quotes against the complete transcripts; 2 went to review. | - |
 | Preserve source links and references | WORKING | - | - | Share link kept on each meeting and insight. | - |
 | Separate direct statements from interpretation | WORKING | - | - | A statement needs a quote found verbatim in the captured source; an interpretation goes to review. | - |
 | Mark missing or ambiguous details for review | WORKING | - | - | Review queue on the Meetings page: confirm, correct, reject. | - |
@@ -191,7 +191,7 @@ Effort: S under 1 day, M 1 to 3 days, L 3 to 10 days, XL 2 weeks or more. These 
 | Keep raw events and evidence separate from summaries | WORKING | - | - | Raw captures are stored apart and never sent to the page. | - |
 | Retrieve relevant lessons into a new mission | WORKING | - | - | `lessons_for`: approved lessons reach strategy, ICP and message prompts for that seller, across missions. | - |
 | Record hypothesis, prediction, experiment, outcome, confidence, decision | PARTIAL | P1 | L | Strategy experiments and proposals record hypotheses. | Predictions and decisions per experiment. |
-| Compare outcomes by segment, persona, signal, channel, message, offer, timing | PARTIAL | P2 | L | By signal only: `workflow/gtm.py`. | Other cuts. |
+| Compare outcomes by segment, persona, signal, channel, message, offer, timing | PARTIAL | P2 | L | By audience, signal (discovered accounts feed it), channel, strategy version and weekday. A signal lesson changes the next ICP in code. | Persona and offer cuts. |
 | Distinguish correlation from causation | WORKING | - | - | Every proposal says correlation; groups are flagged as not randomly assigned; a holdout gives a fair comparison. | - |
 | Detect small samples, selection bias, attribution gaps, delays | WORKING | - | - | Sample floor, recent sends held back, results with no send counted as attribution gaps, selection flagged. | - |
 | Propose changes to weights, messaging, qualification, channels | WORKING | - | - | `propose_changes`; `tests/workflow/test_gtm.py`. | - |
@@ -318,15 +318,19 @@ Effort: S under 1 day, M 1 to 3 days, L 3 to 10 days, XL 2 weeks or more. These 
 
 **Why-now result.** Crustdata's job index returned 0 postings at any date for all 11 schools found. A news search for one school returned nothing, and web and news results carry no date field. Hiring cannot supply a why-now for this market.
 
+| Topic-engagement signal on real Mumbai schools: dated, linked staff posts about AI and edtech; a name that merely contains the account's (another campus) is rejected | Pass |
+| Industry and place filters: country-only discovery returned jewellers, adding the industry filter returned schools only | Pass |
+| Real Claude Code Director imported two real Wispr meetings, read each transcript in full, extracted 9 insights (7 quote-verified), then proposed 2 candidate lessons backed by 2 meetings each | Pass |
+| Real-account bug found and fixed: Wispr ends a cut transcript with a marker inside a fence line, so partial transcripts had been imported as complete | Fixed, tested |
+
 **Deliverability result.** The invite reached the test inbox with an "unknown sender" label. The test emails landed in spam there, as reported by the recipient.
 
 ## 7. Still UNVERIFIED
-- The Director running **Check replies**, **Import from Wispr Flow** and **Review what we learned**. The parts are proven; the whole run needs a person's click on each held read.
-- A real reply reaching the Replies card.
+- **A real reply reaching the Replies card.** No reply exists yet in the mailbox. Reply to a test email, then click Check replies.
+- **Approving the real lessons, then a new mission's ICP.** Proven on fixture data with real clicks; the real lessons await a person's approval.
 - The **Send to test inbox**, **Book test meeting** and scheduled-send paths, which need a click on the held card.
-- A held prompt inside a subagent.
-- Everything after discovery under real Claude Code, including six subagents.
-- Case file, draft and gate on a live account, which need a qualified account first.
+- A held prompt inside a subagent, and the six agents after discovery under real Claude Code.
+- A full live mission where the qualified accounts are real schools. The last run's only qualified account was a board, before the industry and place filters.
 
 ## 8. GTM workflow gaps
 In order of user impact: no live accounts; purely client-rendered sites; no outside market research; one case file per mission. Details in section 4.

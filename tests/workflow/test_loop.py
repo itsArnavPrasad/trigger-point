@@ -15,6 +15,7 @@ from trigger_point.workflow.loop import (
     parse_gmail_messages,
     parse_meeting,
     quote_found,
+    split_cut,
     unwrap_tool_response,
 )
 
@@ -241,3 +242,18 @@ def test_measure_says_what_the_numbers_support(
 ) -> None:
     got = measure(after, 10, before, 10)
     assert got["verdict"] == verdict and got["action"] == action
+
+
+REAL_CUT = "(...truncated, 5580 chars remaining; continue with view_transcript.start_char=12000...)"
+
+
+def test_the_real_wispr_cut_marker_is_found_even_inside_its_end_fence() -> None:
+    # Seen on a real account: the marker is followed by a fence line, not the end of the text.
+    text, start = split_cut(f"Head: we talked.\n{REAL_CUT}\n<<<END TRANSCRIPT>>>")
+    assert start == 12000 and "truncated" not in text and "<<<" not in text
+    assert text.strip() == "Head: we talked."
+
+
+def test_a_complete_transcript_inside_fences_is_clean_and_not_cut() -> None:
+    text, start = split_cut("<<<BEGIN TRANSCRIPT>>>\nA: hello\n<<<END TRANSCRIPT>>>")
+    assert start is None and text.strip() == "A: hello"

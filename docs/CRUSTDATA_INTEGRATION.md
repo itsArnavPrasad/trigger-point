@@ -67,6 +67,17 @@ Suggested internal methods (match to official schemas during implementation):
   - Post search with `actor.location.city (.) Mumbai` + `text (.) edtech` returns recruiters, sales-hiring posts and UAE founders. Employer type is not filtered by the API on posts, so buyer-vs-seller judgement on the returned records (author title and employer) has to happen in code.
   - `industries` on returned company records came back empty even when the filter matched on `basic_info.industries`; do not rely on it as a returned field — use the filter for matching and basic_info `description`/name for display.
 
+## Social posts (`/social_post/search`)
+Used for the `topic_engagement` signal: people at an account publicly posting about a topic.
+
+- **Billing:** 0.5 credits per post returned. An empty result and `limit: 0` cost nothing, and `limit: 0` still returns `total_count`, so a count is free. The topic and date window go in the query, so only matching posts are billed.
+- **Contract:** `filters`, `sorts: [{field, order}]`, `fields`, `limit` and `cursor` in; `{posts, next_cursor, total_count}` out. Operators are `=`, `in`, `=>` (not `>=`), `(.)` for all words and `[.]` for an exact phrase.
+- **What a post carries:** a real `date_posted`, a public `share_url`, the text, and the author's title and employer **name**. It has no employer id. Author location is coarse (state and country, no city).
+- **Reduced on purpose:** the adapter never requests names, headlines, reactors or comments. Evidence stores a role and an employer, not a person.
+- **Entity matching:** each campus of a school chain is its own company, and its name carries the place. A name that merely contains the account's is another campus or the group page, so only an exact name counts (case, punctuation and "Pvt Ltd" aside). Two different schools with the identical name in different cities cannot be told apart.
+- **Live finding:** a free count showed about 21,000 posts by Mumbai educators since the start of the year, and about 3,000 of them about AI, edtech or ChatGPT. Parents stating they are parents is thin: about 2,000 Mumbai posts, and only 46 about maths or tuition.
+- **Company search precision:** a country-only search for schools returned jewellers and hospitality firms. Adding `basic_info.industries` returned schools only, and `locations.headquarters` text narrowed it to the city. Both cost nothing extra.
+
 ## REST vs MCP
 **Status:** live. Identify, company search, job search and person search are proven through the adapter. Trigger Point does not use the Crustdata plugin MCP: agents have no route around the adapter.
 

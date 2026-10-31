@@ -1,6 +1,6 @@
 # Project Status
 
-Checklist status: 66 working, 53 partial, 19 missing, 0 broken, 0 unverified, 0 not applicable of 138. See `docs/GTMO_AUDIT_REPORT.md`. Setup is in `README.md`.
+Checklist status: 67 working, 52 partial, 19 missing, 0 broken, 0 unverified, 0 not applicable of 138. See `docs/GTMO_AUDIT_REPORT.md`. Setup is in `README.md`.
 
 ## Current state
 The core loop runs end to end:
@@ -78,6 +78,11 @@ Real runs are listed in `docs/GTMO_AUDIT_REPORT.md`, section 6.
 - **Not built:** follow-up bodies (only the angle plan exists), a LinkedIn note, and warm paths. There is no relationship data, and every case says so.
 - **Which signals apply is not yet learned.** The ICP Strategist is told to reason about the buyer type before choosing `signal_types`. Across two live runs against Mumbai schools it chose `active_hiring` once and an honest empty list once; a model call is not deterministic, so either can happen. Outcomes from the outreach path (`workflow/outreach.py`) are not yet linked to which Crustdata signal justified the target, so the learning loop's `signal_type` comparison has nothing to learn from until that link is built.
 - **Security:** DNS-rebinding window, which needs IP pinning before hosting. robots.txt is not consulted. Quote grounding proves the quote exists, not that it entails the claim.
+
+- **Discovery vocabulary:** the post-filter that drops non-buyers uses education-leaning word lists, and applies only when the ICP names a buyer segment such as schools or hospitals. Other segments are not covered.
+- **Parents:** no signal yet. The plan is explicit self-statements only, never age inference, and the data is thin.
+- **Model variability:** the ICP step's signal choice differs between runs. A person can retry, and required fields stop it from skipping the topic keywords.
+- **Credit budget:** each stage gets its own cap rather than one cap for the whole run.
 
 ## Next tasks
 Follow `docs/GTMO_IMPLEMENTATION_ROADMAP.md`. What each gap needs is in `docs/GTMO_AUDIT_REPORT.md`, section 15.

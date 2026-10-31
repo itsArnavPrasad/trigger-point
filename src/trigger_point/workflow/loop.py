@@ -40,6 +40,7 @@ ReplyKind = Literal["reply", "opted_out", "bounced"]
 _CUT = re.compile(
     r"\s*\(\.\.\.truncated, \d+ chars remaining; continue with [^)]*start_char=(\d+)\.\.\.\)\s*$"
 )
+_FENCE = re.compile(r"^\s*<<<[A-Z ]+>>>\s*|\s*<<<[A-Z ]+>>>\s*$")
 _BOUNCE_SENDER = re.compile(r"mailer-daemon|postmaster", re.I)
 _OPT_OUT = re.compile(
     r"\bunsubscribe\b|\bstop (emailing|contacting|sending|messaging)\b|"
@@ -172,11 +173,13 @@ def parse_meeting(payload: dict[str, Any]) -> RawMeeting | None:
 
 
 def split_cut(transcript: str) -> tuple[str, int | None]:
-    """Wispr ends a partial transcript with a marker. It is not something anyone said."""
-    found = _CUT.search(transcript)
+    """Wispr wraps a transcript in fence lines and ends a partial one with a marker. Neither is
+    something anyone said, and the marker can sit inside the closing fence."""
+    text = _FENCE.sub("", transcript)
+    found = _CUT.search(text)
     if found is None:
-        return transcript, None
-    return transcript[: found.start()], int(found.group(1))
+        return text, None
+    return text[: found.start()], int(found.group(1))
 
 
 def classify_reply(sender: str, body: str) -> ReplyKind:
