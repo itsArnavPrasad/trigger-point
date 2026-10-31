@@ -237,6 +237,19 @@ def register_feedback_tools(server: MCPServer, fb: FeedbackService) -> None:
         return fb.propose_lesson(mission_id, text, target, evidence_ids)
 
     @server.tool(annotations=WRITES)
+    def propose_campaign_plan(
+        mission_id: str,
+        summary: str,
+        changes: list[dict[str, Any]],
+        campaign: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Propose the next campaign from what was learned. Each change is {text, target
+        (icp|messaging|qualification|channel), evidence_ids, experiment, dimension?, value?};
+        campaign is {audience, signal_type, angle, why}. A change backed by one source must set
+        experiment true. A person approves in the Office; nothing changes until then."""
+        return fb.propose_campaign_plan(mission_id, summary, changes, campaign)
+
+    @server.tool(annotations=WRITES)
     def write_follow_up(mission_id: str, outreach_id: str) -> dict[str, Any]:
         """The next message in a sequence, verified like any other. Stops if they answered."""
         return fb.write_follow_up(mission_id, outreach_id)

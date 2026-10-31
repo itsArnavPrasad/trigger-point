@@ -38,13 +38,14 @@ export interface MissionView {
 export interface Outreach { id: string; target_id: string; target_name: string; audience: string; purpose: string; ask: string; subject: string; body: string; status: string; sending: string; content_hash: string; mode: string; step?: number; variant?: string; lessons_used?: string[]; test_sends?: { to: string; message_id: string }[]; manual_sends?: { sent_on: string }[]; schedule?: { send_at: string; timezone: string; state: string; channel: string; recipient: string; step: number; error: string | null } | null; attempts: { attempt: number | string; findings: { code: string; message: string }[] }[] }
 export interface Lesson { id: string; text: string; target: string; sources: number; single_source: boolean; status: string; history: string[]; strategy_version: number | null }
 export interface Experiment { id: string; change: string; version: number; metric: string; rule: string; status: string; result: { verdict: string; action: string; after_rate: number; after_n: number; before_rate: number; before_n: number } }
+export interface CampaignPlan { id: string; summary: string; status: string; version?: number; campaign: { audience?: string; signal_type?: string; angle?: string; why?: string }; changes: { text: string; target: string; sources: number; experiment: boolean; evidence_ids: string[] }[] }
 export interface Learning {
   demo: boolean; steps: { name: string; count: number }[]
   replies: { id: string; target_name: string; sender: string; body: string; received_on: string; kind: string; label: string | null }[]
   suppressions: { id: string; target_name: string; reason: string }[]
   lifecycle: Record<string, { state: string; reached: string[] }>
   insights: { id: string; kind: string; text: string; basis: string; quote: string; speaker: string | null; status: string; account_name: string | null; original_text: string | null; source_link: string | null }[]
-  lessons: Lesson[]; experiments: Experiment[]
+  lessons: Lesson[]; experiments: Experiment[]; plans: CampaignPlan[]
   decisions: { id: string; change: string; evidence: string; status: string; dimension?: string | null; value?: string | null }[]
   timeline: { version: number; author: string; changes: string[]; rolled_back_to: number | null; guidance: string[] }[]
   report: {

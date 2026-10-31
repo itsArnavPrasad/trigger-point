@@ -322,12 +322,16 @@ Effort: S under 1 day, M 1 to 3 days, L 3 to 10 days, XL 2 weeks or more. These 
 | Industry and place filters: country-only discovery returned jewellers, adding the industry filter returned schools only | Pass |
 | Real Claude Code Director imported two real Wispr meetings, read each transcript in full, extracted 9 insights (7 quote-verified), then proposed 2 candidate lessons backed by 2 meetings each | Pass |
 | Real-account bug found and fixed: Wispr ends a cut transcript with a marker inside a fence line, so partial transcripts had been imported as complete | Fixed, tested |
+| Real Claude Code Director imported eight real Wispr meetings about Tulip (two had no title), extracted 43 insights, proposed 3 candidate lessons that each cite 3 or more meetings, and left one-meeting themes out | Pass |
+| Real-account bug found and fixed: Wispr gives an unnamed recording an empty title, and such meetings were refused as unread. They were the parent and investor calls | Fixed, tested |
+| Two real replies from a real inbox reached the Replies card as replies; both bodies had carried the quoted copy of our own email, including its footer | Fixed, tested |
+| Real Director proposed a campaign plan from those insights: 3 changes with 3 sources each, 4 labelled experiments, each citing real ids. Nothing changed before approval | Pass |
 
 **Deliverability result.** The invite reached the test inbox with an "unknown sender" label. The test emails landed in spam there, as reported by the recipient.
 
 ## 7. Still UNVERIFIED
-- **A real reply reaching the Replies card.** No reply exists yet in the mailbox. Reply to a test email, then click Check replies.
-- **Approving the real lessons, then a new mission's ICP.** Proven on fixture data with real clicks; the real lessons await a person's approval.
+- **Approving the real lessons and the real campaign plan, then a new live mission built from them.** Proven on fixture data with real clicks; the real ones await a person's approval. The plan rests on conversations, not on sent-message outcomes, so most of it is labelled an experiment.
+- **Two real meetings were read about the parent-first idea only through founders and investors.** No parent has yet answered an outreach with a meeting.
 - The **Send to test inbox**, **Book test meeting** and scheduled-send paths, which need a click on the held card.
 - A held prompt inside a subagent, and the six agents after discovery under real Claude Code.
 - A full live mission where the qualified accounts are real schools. The last run's only qualified account was a board, before the industry and place filters.

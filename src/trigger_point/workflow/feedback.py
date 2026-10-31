@@ -713,6 +713,116 @@ class FeedbackService:
         self.engine.save_record("lesson", approved["id"], mission_id, approved)
         return {**out, "experiment": experiment, "lesson": approved["id"]}
 
+    # ── campaign plans ──────────────────────────────────────────────────────────────────────
+
+    def plans(self, mission_id: str) -> list[dict[str, Any]]:
+        return self.engine.records("plan", mission_id)
+
+    @guarded
+    def propose_campaign_plan(
+        self,
+        mission_id: str,
+        summary: str,
+        changes: list[dict[str, Any]],
+        campaign: dict[str, Any],
+    ) -> Result:
+        """The next campaign as one reviewable decision. Every change must cite real evidence, and
+        a pattern needs two independent sources; one source can only be labelled an experiment."""
+        mission = self.engine.mission(mission_id)
+        if not changes:
+            return {"ok": False, "error": "empty_plan", "message": "nothing to change"}
+        modes = teach_modes(mission.mode)
+        insights = {i["id"]: i for i in self.insights(mission_id) if i["status"] in USABLE}
+        outcomes = {o.id: o for o in self.wf.outcomes(mission_id) if o.mode in modes}
+        checked = []
+        for index, item in enumerate(changes):
+            ids = list(item.get("evidence_ids") or [])
+            unknown = [e for e in ids if e not in insights and e not in outcomes]
+            if unknown or not ids:
+                return {"ok": False, "error": "unsupported", "index": index, "ids": unknown}
+            sources = {insights[e]["meeting_id"] for e in ids if e in insights}
+            sources |= {outcomes[e].account_name for e in ids if e in outcomes}
+            experiment = bool(item.get("experiment"))
+            if len(sources) < 2 and not experiment:
+                return {
+                    "ok": False,
+                    "error": "one_source",
+                    "index": index,
+                    "message": "one source is not a pattern; label it an experiment",
+                }
+            checked.append(
+                {
+                    "text": str(item["text"]),
+                    "target": item.get("target", "messaging"),
+                    "evidence_ids": ids,
+                    "sources": len(sources),
+                    "experiment": experiment,
+                    "dimension": item.get("dimension"),
+                    "value": item.get("value"),
+                }
+            )
+        rid = stable_id("plan", mission_id, summary, len(self.plans(mission_id)))
+        record = {
+            "id": rid,
+            "summary": summary,
+            "changes": checked,
+            "campaign": campaign,
+            "status": "proposed",
+        }
+        self.engine.save_record("plan", rid, mission_id, record)
+        return {"ok": True, **record}
+
+    @guarded
+    def decide_campaign_plan(self, mission_id: str, plan_id: str, decision: str) -> Result:
+        """Approval is one strategy version, one experiment, and a lesson for each change that has
+        two sources. Experiments are tested, not taught."""
+        plan = next((p for p in self.plans(mission_id) if p["id"] == plan_id), None)
+        if plan is None:
+            return {"ok": False, "error": "not_found", "message": plan_id}
+        if plan["status"] != "proposed":
+            return {"ok": False, "error": "already_decided", "message": plan["status"]}
+        if decision != "approved":
+            self.engine.save_record("plan", plan_id, mission_id, {**plan, "status": decision})
+            return {"ok": True, "status": decision}
+        texts = [c["text"] for c in plan["changes"]]
+        made = self.wf.version_strategy(
+            mission_id, texts, {"next_campaign": {**plan["campaign"], "plan": plan_id}}
+        )
+        if not made["ok"]:
+            return made
+        version = made["version"]
+        experiment = self._start_experiment(mission_id, plan["summary"], version)
+        modes = teach_modes(self.engine.mission(mission_id).mode)
+        for c in plan["changes"]:
+            if c["experiment"]:
+                continue
+            lid = stable_id("les", mission_id, c["text"])
+            self.engine.save_record(
+                "lesson",
+                lid,
+                mission_id,
+                {
+                    "id": lid,
+                    "text": c["text"],
+                    "target": c["target"],
+                    "evidence_ids": c["evidence_ids"],
+                    "sources": c["sources"],
+                    "single_source": False,
+                    "status": "approved",
+                    "history": [],
+                    "dimension": c["dimension"],
+                    "value": c["value"],
+                    "mode": modes[0],
+                    "domain": self._domain(mission_id),
+                    "strategy_version": version,
+                    "experiment": experiment,
+                },
+            )
+        self.engine.save_record(
+            "plan", plan_id, mission_id, {**plan, "status": "approved", "version": version}
+        )
+        return {"ok": True, "status": "approved", "version": version, "experiment": experiment}
+
     def _measured(self, mission_id: str, record: dict[str, Any]) -> dict[str, Any]:
         modes = teach_modes(self.engine.mission(mission_id).mode)
         result = measure_experiment(
@@ -835,6 +945,7 @@ class FeedbackService:
             "experiments": experiments,
             "report": report,
             "decisions": decisions,
+            "plans": self.plans(mission_id),
             "timeline": [
                 {
                     "version": v["version"],

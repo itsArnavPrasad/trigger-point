@@ -98,7 +98,7 @@ def test_the_mission_view_never_carries_raw_sources(h: Harness) -> None:
 
 def test_buttons_reach_the_director(h: Harness) -> None:
     mid = mission(h)
-    for path in ("check-replies", "import-meetings", "review-learning"):
+    for path in ("check-replies", "import-meetings", "review-learning", "plan-campaign"):
         assert post(h, f"/missions/{mid}/{path}").status_code == 202
 
 
@@ -184,3 +184,20 @@ def test_a_proposal_keeps_what_it_compared_so_it_can_be_acted_on(h: Harness) -> 
     assert post(h, f"/missions/{mid}/proposals", body).status_code == 201
     [saved] = h.mission(mid)["learning"]["decisions"]
     assert saved["dimension"] == "signal_type" and saved["value"] == "topic_engagement"
+
+
+def test_a_person_approves_or_rejects_the_campaign_plan_from_the_office(h: Harness) -> None:
+    from tests.workflow.test_campaign_plan import CAMPAIGN, change, learned
+
+    fb, mid, both, _ = learned(h.rig)
+    plan = fb.propose_campaign_plan(
+        mid, "Teachers first", [change("Teacher buy-in", both)], CAMPAIGN
+    )
+    assert (
+        post(h, f"/missions/{mid}/plans/{plan['id']}/decide", {"decision": "maybe"}).status_code
+        == 422
+    )
+    ok = post(h, f"/missions/{mid}/plans/{plan['id']}/decide", {"decision": "approved"})
+    assert ok.status_code == 200 and fb.plans(mid)[0]["status"] == "approved"
+    again = post(h, f"/missions/{mid}/plans/{plan['id']}/decide", {"decision": "approved"})
+    assert again.status_code >= 400

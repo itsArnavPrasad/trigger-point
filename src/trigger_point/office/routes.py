@@ -371,6 +371,10 @@ def office_router(services: Services, office: OfficeStore, runner: MissionRunner
             mission_id, "Import meetings from Wispr Flow.", "Import meetings from Wispr Flow."
         )
 
+    @r.post("/missions/{mission_id}/plan-campaign", status_code=202)
+    def plan_campaign(mission_id: str) -> dict[str, bool]:
+        return director(mission_id, "Plan the next campaign.", "Plan the next campaign.")
+
     @r.post("/missions/{mission_id}/review-learning", status_code=202)
     def review_learning(mission_id: str) -> dict[str, bool]:
         return director(mission_id, "Review what we learned.", "Review what we learned.")
@@ -426,6 +430,11 @@ def office_router(services: Services, office: OfficeStore, runner: MissionRunner
     def decide_lesson(mission_id: str, lesson_id: str, body: Decide) -> dict[str, Any]:
         known(mission_id)
         return done(mission_id, fb.decide_lesson(mission_id, lesson_id, body.decision))
+
+    @r.post("/missions/{mission_id}/plans/{plan_id}/decide")
+    def decide_plan(mission_id: str, plan_id: str, body: Decide) -> dict[str, Any]:
+        known(mission_id)
+        return done(mission_id, fb.decide_campaign_plan(mission_id, plan_id, body.decision))
 
     @r.post("/missions/{mission_id}/lessons/{lesson_id}/edit")
     def edit_lesson(mission_id: str, lesson_id: str, body: Text) -> dict[str, Any]:

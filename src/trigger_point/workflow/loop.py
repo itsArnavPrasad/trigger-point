@@ -133,6 +133,27 @@ def _day(value: Any) -> date | None:
         return None
 
 
+_REPLY_HEADER = re.compile(r"^On\b.{0,200}?\bwrote:\s*$", re.DOTALL)
+_ORIGINAL_MARK = re.compile(r"^-{2,}\s*(Original Message|Forwarded message)", re.IGNORECASE)
+
+
+def strip_quoted(body: str) -> str:
+    """Keep what the person wrote. The quoted copy of our own email below it would otherwise be
+    read as their words: its unsubscribe footer is not an opt-out."""
+    lines = body.replace("\r\n", "\n").split("\n")
+    for i, line in enumerate(lines):
+        if _ORIGINAL_MARK.match(line.strip()):
+            lines = lines[:i]
+            break
+        if line.startswith("On ") and not line.startswith(">"):
+            spans = (" ".join(x.strip() for x in lines[i : i + n]) for n in (1, 2))
+            if any(_REPLY_HEADER.match(span) for span in spans):
+                lines = lines[:i]
+                break
+    kept = [x for x in lines if not x.lstrip().startswith(">")]
+    return "\n".join(kept).strip()
+
+
 def parse_gmail_messages(payload: dict[str, Any]) -> list[Message]:
     listed = payload.get("messages")
     found = []
@@ -145,7 +166,7 @@ def parse_gmail_messages(payload: dict[str, Any]) -> list[Message]:
                 thread_id=m.get("threadId"),
                 sender=str(m.get("sender") or ""),
                 subject=str(m.get("subject") or ""),
-                body=str(m.get("plaintextBody") or m.get("snippet") or ""),
+                body=strip_quoted(str(m.get("plaintextBody") or m.get("snippet") or "")),
                 ours="SENT" in (m.get("labelIds") or []),
                 received_on=_day(m.get("date")),
             )
@@ -154,13 +175,18 @@ def parse_gmail_messages(payload: dict[str, Any]) -> list[Message]:
 
 
 def parse_meeting(payload: dict[str, Any]) -> RawMeeting | None:
-    if not payload.get("id") or not payload.get("title"):
+    if not payload.get("id"):
         return None
+    held = _day(payload.get("start"))
+    # Wispr gives an unnamed recording an empty title. Its content is as real as any other.
+    title = (
+        str(payload.get("title") or "").strip() or f"Untitled meeting on {held or 'unknown date'}"
+    )
     listed = payload.get("attendees")
     return RawMeeting(
         source_id=str(payload["id"]),
-        title=str(payload["title"]),
-        held_on=_day(payload.get("start")),
+        title=title,
+        held_on=held,
         attendees=[
             str(p.get("name") or p.get("display_name") or "") if isinstance(p, dict) else str(p)
             for p in (listed if isinstance(listed, list) else [])
