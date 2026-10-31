@@ -19,9 +19,9 @@ from trigger_point.office.store import OfficeStore
 from trigger_point.workflow.conversation import OPEN_STATES
 from trigger_point.workflow.models import TERMINAL
 
-STOPPED = TERMINAL - {"COMPLETE"}
 from trigger_point.workflow.service import audience_for
 
+STOPPED = TERMINAL - {"COMPLETE"}
 LEAD = timedelta(minutes=2)
 BREAKER = 3  # held steps before a mission is paused for the founder to look
 _locks: dict[str, threading.Lock] = {}
