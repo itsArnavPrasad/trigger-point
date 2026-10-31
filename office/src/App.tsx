@@ -1,6 +1,7 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react"
 import { follow, get, post, token } from './api'
 import { Accounts, Activity, Campaign, Committee, Costs, EvidenceAudit, Gate, IcpPage, Integrations, Overview, ProfilePage, Signals } from './components/Dashboards'
+import AgentMode, { Composer } from './components/Agent'
 import Home, { NeedsYou } from './components/Home'
 import Icon from './components/Icon'
 import { FinancePage, OutreachPage, PipelinePage, StrategyPage } from './components/Pages'
@@ -141,17 +142,47 @@ function NewMission({ onStart, onClose, mode }: { onStart: (b: Record<string, st
   )
 }
 
-function Inspector({ view, connected, page, onOpen, onAnswer, log, chat, setChat, send, notice }: {
-  view: MissionView; connected: boolean; page: string; onOpen: (role: string, tab: string) => void
+function ChatButton({ open, busy, needs, onClick }: { open: boolean; busy: boolean; needs: number; onClick: () => void }) {
+  return (
+    <button className={`chat-btn${open ? ' on' : ''}${busy && !open ? ' busy' : ''}`} onClick={onClick} aria-pressed={open} aria-label={open ? 'Close the Mission Director chat' : 'Open the Mission Director chat'}>
+      <span className="chat-btn-icon"><Icon name="sparkle" size={15} /></span>
+      <span>{open ? 'Close' : 'Chat'}</span>
+      {needs > 0 && !open && <em className="chat-btn-badge">{needs}</em>}
+    </button>
+  )
+}
+
+/** The Mission Director as a floating window anchored to the Chat button. Always mounted, so it can animate both ways. */
+function FloatingChat({ open, view, live, page, onClose, onOpen, onAnswer, log, chat, setChat, send, notice }: {
+  open: boolean; view: MissionView; live: string; page: string; onClose: () => void; onOpen: (role: string, tab: string) => void
   onAnswer: (p: Permission, d: 'allow' | 'deny') => void; log: RefObject<HTMLDivElement>
-  chat: string; setChat: (s: string) => void; send: (e: { preventDefault: () => void }) => void; notice: string
+  chat: string; setChat: (s: string) => void; send: (e?: { preventDefault: () => void }) => void; notice: string
 }) {
   const m = view.mission
   const stalled = view.approvals.find(a => a.status === 'pending' && !view.permissions.length)
   const steps = flowSteps(m)
   const at = steps.findIndex(s => s.phase === 'current')
+  const box = useRef<HTMLElement>(null)
+  const input = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const el = box.current as (HTMLElement & { inert: boolean }) | null
+    if (el) el.inert = !open  // a closed window is skipped by Tab and screen readers
+    if (!open) return
+    const t = setTimeout(() => input.current?.focus(), 320)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => { clearTimeout(t); window.removeEventListener('keydown', onKey) }
+  }, [open, onClose])
+
   return (
-    <aside className="inspector" aria-label="Mission Director">
+    <aside className={`float-chat${open ? ' open' : ''}`} ref={box} aria-label="Mission Director">
+      <header className="chat-head">
+        <span className="pill-icon accent"><Icon name="sparkle" size={16} /></span>
+        <div className="grow"><b>Mission Director</b><small>{live === 'working' ? 'Thinking…' : `${stateLabel(m.state)}${at >= 0 ? ` · Step ${at + 1} of ${steps.length}` : ''}`}</small></div>
+        <button className="close" onClick={onClose} aria-label="Close chat" title="Close (Esc)">×</button>
+      </header>
+      <ol className="flow">{steps.map(s => <li key={s.state} className={s.phase} title={s.label} />)}</ol>
       {page !== 'home' && view.permissions.length > 0 && (
         <section className="insp-needs" data-testid="needs-you">
           <h3>Needs you</h3>
@@ -167,30 +198,24 @@ function Inspector({ view, connected, page, onOpen, onAnswer, log, chat, setChat
           ))}
         </section>
       )}
-      {stalled && <section className="insp-quiet"><p>{stalled.summary}</p><small>Waiting for the Director to ask. Message it below if it has stopped.</small></section>}
-      <section className="insp-progress">
-        <div className="insp-state"><h3>{stateLabel(m.state)}</h3><small>{at >= 0 ? `Step ${at + 1} of ${steps.length}` : ''}</small></div>
-        {m.wait_reason && <p className="alert">{m.wait_reason}</p>}
-        {m.failure && <p className="alert bad">{m.failure}</p>}
-        <ol className="flow">{steps.map(s => <li key={s.state} className={s.phase} title={s.label} />)}</ol>
-        <ul className="team">{view.agents.map(a => (
-          <li key={a.role}><button onClick={() => onOpen(a.role, a.role === 'mission-director' ? 'overview' : 'work')}><i className={`dot s-${a.status}`} />{a.name}<span>{agentLabel(a, connected)}</span></button></li>
-        ))}</ul>
-      </section>
-      <section className="chat">
-        <h3>Mission Director</h3>
-        <div className="log" ref={log}>
-          {view.messages.map(x => <p key={x.seq} className={x.sender}>{x.text}</p>)}
-          {view.messages.length === 0 && <p className="system">No messages. This mission was not started from the Office.</p>}
-        </div>
-        {notice && <p className="alert bad">{notice}</p>}
-        <form onSubmit={send}><input value={chat} onChange={e => setChat(e.target.value)} placeholder="Message the Director" aria-label="Message the Director" /><button className="send" disabled={!chat.trim()} aria-label="Send">↑</button></form>
-      </section>
+      {stalled && <p className="chat-note">{stalled.summary} Waiting for the Director to ask. Message it below if it has stopped.</p>}
+      {m.wait_reason && <p className="alert chat-note">{m.wait_reason}</p>}
+      {m.failure && <p className="alert bad chat-note">{m.failure}</p>}
+      <div className="chat-thread" ref={log} aria-live="polite">
+        {view.messages.length === 0 && <p className="chat-empty">Ask about your meetings, accounts or next steps. The Director researches, drafts and books once you approve each step.</p>}
+        {view.messages.map(x => <p key={x.seq} className={`msg ${x.sender}`}>{x.text}</p>)}
+        {live === 'working' && <p className="msg typing" aria-label="Thinking"><i /><i /><i /></p>}
+      </div>
+      <div className="chat-compose">
+        <Composer inputRef={input} text={chat} setText={setChat} send={send} sending={false} error={notice} placeholder="Message the Mission Director…" chips={false} />
+      </div>
     </aside>
   )
 }
 
-const wide = () => typeof window !== 'undefined' && window.innerWidth >= 1280
+const MODE_KEY = 'trigger-point-mode'
+const savedMode = () => { try { return localStorage.getItem(MODE_KEY) === 'agent' ? 'agent' : 'dashboard' } catch { return 'dashboard' } }
+
 const narrow = () => typeof window !== 'undefined' && window.innerWidth < 900
 
 export default function App() {
@@ -202,9 +227,11 @@ export default function App() {
   const [open, setOpen] = useState<{ role: string; tab: string } | null>(null)
   const [creating, setCreating] = useState(false)
   const [page, setPage] = useState('home')
+  const [mode, setModeState] = useState<'agent' | 'dashboard'>(savedMode)
+  const setMode = (m: 'agent' | 'dashboard') => { setModeState(m); try { localStorage.setItem(MODE_KEY, m) } catch { /* per-viewer convenience only */ } }
   const [meetingFocus, setMeetingFocus] = useState<string | null>(null)
   const [sidebar, setSidebar] = useState(!narrow())
-  const [inspector, setInspector] = useState(wide())
+  const [inspector, setInspector] = useState(false)
   const [chat, setChat] = useState('')
   const [notice, setNotice] = useState('')
   const missionRef = useRef<string | null>(null)
@@ -240,11 +267,12 @@ export default function App() {
     await post(`/permissions/${p.id}`, { decision, message })
     void refresh()
   }
-  const send = async (e: { preventDefault: () => void }) => {
-    e.preventDefault()
+  const send = async (e?: { preventDefault: () => void }) => {
+    e?.preventDefault()
     if (!chat.trim() || !view) return
-    try { await post(`/missions/${view.mission.id}/messages`, { text: chat }); setChat('') } catch (err) { setNotice((err as Error).message) }
+    try { await post(`/missions/${view.mission.id}/messages`, { text: chat }); setChat(''); setNotice('') } catch (err) { setNotice((err as Error).message) }
   }
+  const cancelMission = () => { if (view) void post(`/missions/${view.mission.id}/cancel`) }
   const go = (p: string) => { setPage(p); if (narrow()) setSidebar(false); document.querySelector('.content')?.scrollTo(0, 0) }
   const openAgent = (role: string, tab: string) => view && setOpen({ role, tab })
 
@@ -261,8 +289,18 @@ export default function App() {
     meetings: splitMeetings(view.meetings, new Date().toISOString().slice(0, 10)).upcoming.length,
   } : {}
 
+  const modals = <>
+    {agent && view && boot && <AgentDashboard agent={agent} view={view} boot={boot} tab={open!.tab} setTab={t => setOpen({ role: agent.role, tab: t })} onClose={() => setOpen(null)} onAnswer={(p, d) => void answer(p, d)} />}
+    {creating && boot && <div className="overlay" onClick={() => setCreating(false)}><div className="modal" onClick={e => e.stopPropagation()}><NewMission onStart={start} onClose={() => setCreating(false)} mode={boot.mode} /></div></div>}
+  </>
+
+  if (mode === 'agent' && view) return <>
+    <AgentMode v={view} connected={connected} live={live} onDashboard={() => setMode('dashboard')} onAnswer={(p, d) => void answer(p, d)} />
+    {modals}
+  </>
+
   return (
-    <div className={`shell${sidebar ? '' : ' no-sidebar'}${inspector && view ? ' with-inspector' : ''}`}>
+    <div className={`shell${sidebar ? '' : ' no-sidebar'}`}>
       <aside className="sidebar" aria-label="Workspace">
         <div className="brand"><span className="brand-mark"><Icon name="icp" size={16} /></span><div><b>Trigger Point</b><small>GTM operating system</small></div></div>
         <nav>
@@ -298,10 +336,9 @@ export default function App() {
           {m && <span className={`mode-chip m-${m.mode}`} title={Object.entries(m.provider_modes).map(([k, v]) => `${k}: ${v}`).join(', ')}>{modeLabel(m.mode)}</span>}
           <span className={`live-chip l-${live}`} data-testid="liveness"><i />{LIVENESS_LABEL[live]}</span>
           <span className="grow" />
+          {view && <div className="mode-switch small" role="tablist" aria-label="Mode"><button role="tab" aria-selected="false" onClick={() => setMode('agent')}><Icon name="sparkle" size={13} />Agent</button><button role="tab" aria-selected="true" className="on"><Icon name="dashboard" size={13} />Dashboard</button></div>}
           {view && <span className="cost">${view.costs.claude_usd.toFixed(3)} · {view.costs.crustdata_credits.actual ?? '0'} credits</span>}
-          {m && !['COMPLETE', 'FAILED', 'CANCELLED'].includes(m.state) && <button className="btn plain" onClick={() => void post(`/missions/${m.id}/cancel`)}>Cancel mission</button>}
-          {view && <button className={`icon-btn${inspector ? ' on' : ''}`} onClick={() => setInspector(!inspector)} aria-label="Mission Director" title="Mission Director"><Icon name="chat" />{view.permissions.length > 0 && <em className="dot-badge" />}</button>}
-          <button className="btn primary" onClick={() => setCreating(true)}><Icon name="plus" size={15} /><span className="btn-label">New mission</span></button>
+          {view && <ChatButton open={inspector} busy={live === 'working'} needs={view.permissions.length} onClick={() => setInspector(!inspector)} />}
         </header>
 
         <div className="workspace">
@@ -316,7 +353,7 @@ export default function App() {
                 <p className="office-caption">{view ? SUBTITLE.office : 'Eight agents wait at their desks. They only move when real work starts.'}</p>
               </div>
             ) : page === 'home' ? (
-              view ? <Home v={view} connected={connected} live={live} go={go} onAnswer={(p, d) => void answer(p, d)} onReview={p => openAgent(p.dashboard, p.dashboard === 'mission-director' ? 'overview' : 'work')} onNotes={id => { setMeetingFocus(id); go('meetings') }} />
+              view ? <Home v={view} connected={connected} live={live} go={go} onAnswer={(p, d) => void answer(p, d)} onReview={p => openAgent(p.dashboard, p.dashboard === 'mission-director' ? 'overview' : 'work')} onNotes={id => { setMeetingFocus(id); go('meetings') }} onAgent={() => setMode('agent')} onNewMission={() => setCreating(true)} onCancel={cancelMission} />
                 : boot ? <div className="welcome"><div className="welcome-copy"><span className="eyebrow">Trigger Point</span><h1>Find out who needs you, and why now.</h1><p>Give it your website and a goal. Agents read your business, pick the accounts with a real reason to talk, prove it with evidence, and draft outreach you approve.</p></div><NewMission onStart={start} mode={boot.mode} /></div>
                 : <p className="loading">Loading…</p>
             ) : (
@@ -329,12 +366,11 @@ export default function App() {
               </div>
             )}
           </main>
-          {inspector && view && <Inspector view={view} connected={connected} page={page} onOpen={openAgent} onAnswer={(p, d) => void answer(p, d)} log={log} chat={chat} setChat={setChat} send={send} notice={notice} />}
         </div>
       </div>
 
-      {agent && view && boot && <AgentDashboard agent={agent} view={view} boot={boot} tab={open!.tab} setTab={t => setOpen({ role: agent.role, tab: t })} onClose={() => setOpen(null)} onAnswer={(p, d) => void answer(p, d)} />}
-      {creating && boot && <div className="overlay" onClick={() => setCreating(false)}><div className="modal" onClick={e => e.stopPropagation()}><NewMission onStart={start} onClose={() => setCreating(false)} mode={boot.mode} /></div></div>}
+      {view && <FloatingChat open={inspector} view={view} live={live} page={page} onClose={() => setInspector(false)} onOpen={openAgent} onAnswer={(p, d) => void answer(p, d)} log={log} chat={chat} setChat={setChat} send={send} notice={notice} />}
+      {modals}
     </div>
   )
 }
