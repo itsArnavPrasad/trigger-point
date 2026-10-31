@@ -3,9 +3,9 @@
 
 import { useState, type FormEvent } from 'react'
 import { post } from '../api'
-import { STAGE_ORDER, money } from '../logic'
+import { STAGE_ORDER, money, signalLabel } from '../logic'
 import type { MissionView, Outreach } from '../types'
-import { Lifecycle, MeetingReview, Replies, SendControls } from './Loop'
+import { Lifecycle, MeetingReview, QualifiedAccounts, Replies, SendControls } from './Loop'
 import { Card, Empty, Source, Stat, Tag } from './ui'
 
 function Field({ label, value, onChange, type = 'text', options }: { label: string; value: string; onChange: (v: string) => void; type?: string; options?: string[] }) {
@@ -118,12 +118,13 @@ export function OutreachPage({ v }: { v: MissionView }) {
   }
   return (
     <div className="grid">
+ <QualifiedAccounts v={v} audiences={AUDIENCE_LABEL} />
       <Card wide title="Your targets" hint="People and schools you name. No Crustdata needed.">
         <div className="row start"><button className="ghost" onClick={() => void post(`/missions/${id}/samples`)}>Add sample targets</button><button className="ghost" onClick={() => void post(`/missions/${id}/test-meeting`)}>Book a test meeting</button></div>
         {!approved && <p className="alert">Approve the business profile first. Messages are written only from approved facts.</p>}
         {error && <p className="alert bad">{error}</p>}
-        {v.targets.length ? <table><thead><tr><th>Target</th><th>Audience</th><th>Notes</th><th>Message</th></tr></thead><tbody>{v.targets.map(t => (
-          <tr key={t.id}><td><b>{t.name}</b></td><td>{AUDIENCE_LABEL[t.audience]}</td><td>{t.notes || '-'}</td><td><button className="ghost mini" disabled={!approved || busy === t.id} onClick={() => void write(t.id)}>{busy === t.id ? 'Writing…' : 'Write message'}</button></td></tr>
+        {v.targets.length ? <table><thead><tr><th>Target</th><th>Audience</th><th>Why now, or notes</th><th>Message</th></tr></thead><tbody>{v.targets.map(t => (
+          <tr key={t.id}><td><b>{t.name}</b></td><td>{AUDIENCE_LABEL[t.audience]}</td><td>{t.why_now?.length ? <>{(t.signal_types ?? []).map(s => <Tag key={s} tone="info">{signalLabel(s)}</Tag>)}{t.why_now.map((w, i) => <small key={i}>{w}</small>)}</> : (t.notes || '-')}</td><td><button className="ghost mini" disabled={!approved || busy === t.id} onClick={() => void write(t.id)}>{busy === t.id ? 'Writing…' : 'Write message'}</button></td></tr>
         ))}</tbody></table> : <Empty>No targets yet. Add a school or a parent group below.</Empty>}
         <form className="form-grid" onSubmit={form.onSubmit}>
           <Field label="Name" value={form.f.name} onChange={form.set('name')} />

@@ -8,7 +8,7 @@ import pytest
 
 from tests.office.test_office_api import Harness
 from tests.office.test_office_hook import MID, hook, run  # noqa: F401
-from tests.workflow.conftest import GOAL, URL, Rig
+from tests.workflow.conftest import GOAL, URL, Rig, advance_to_draft
 from trigger_point.office import scheduler
 from trigger_point.office.views import integration_health
 
@@ -141,3 +141,46 @@ def test_wispr_shows_connected_only_when_claude_code_says_so(rig: Rig) -> None:
 
     assert state({"claude.ai Wispr Flow": "connected"}) == "connected"
     assert state({}) == "not_connected"
+
+
+def qualified_id(h: Harness, mid: str, status: str = "qualified") -> int:
+    wf = h.rig.services.workflow
+    run = wf._research.get(wf.engine.mission(mid).research_id)  # noqa: SLF001
+    return int(
+        next(a for a in run.accounts if a.score.status == status).account.provider_company_id
+    )
+
+
+def test_a_qualified_account_becomes_a_target_from_the_office(h: Harness) -> None:
+    mid = advance_to_draft(h.rig)
+    cid = qualified_id(h, mid)
+    out = post(h, f"/missions/{mid}/accounts/{cid}/target", {"audience": "school_authority"})
+    assert out.status_code == 201 and out.json()["signal_types"]
+    assert [t["account_id"] for t in h.mission(mid)["targets"]] == [cid]
+
+
+def test_a_rejected_account_cannot_become_a_target_from_the_office(h: Harness) -> None:
+    mid = advance_to_draft(h.rig)
+    cid = qualified_id(h, mid, "rejected")
+    out = post(h, f"/missions/{mid}/accounts/{cid}/target", {"audience": "school_authority"})
+    assert out.status_code == 409 and h.mission(mid)["targets"] == []
+
+
+def test_a_bad_audience_is_refused_before_it_reaches_the_service(h: Harness) -> None:
+    mid = advance_to_draft(h.rig)
+    cid = qualified_id(h, mid)
+    assert post(h, f"/missions/{mid}/accounts/{cid}/target", {"audience": ""}).status_code == 422
+
+
+def test_a_proposal_keeps_what_it_compared_so_it_can_be_acted_on(h: Harness) -> None:
+    mid = mission(h)
+    body = {
+        "change": "Give topic engagement more weight in timing",
+        "evidence": "5 sends: 60% vs 0%",
+        "outcome_ids": [],
+        "dimension": "signal_type",
+        "value": "topic_engagement",
+    }
+    assert post(h, f"/missions/{mid}/proposals", body).status_code == 201
+    [saved] = h.mission(mid)["learning"]["decisions"]
+    assert saved["dimension"] == "signal_type" and saved["value"] == "topic_engagement"

@@ -355,6 +355,58 @@ def test_approval_changes_what_the_next_message_is_given(rig: Rig) -> None:
     assert p["change"] in seen[-1] and "<approved_lessons>" in seen[-1]
 
 
+def test_demo_results_compare_which_signal_led_to_meetings_too(rig: Rig) -> None:
+    fb, mid, _ = two_sources(rig)
+    proposals = fb.view(mid)["report"]["proposals"]
+    p = next(x for x in proposals if x["dimension"] == "signal_type")
+    assert p["value"] == "topic_engagement" and p["target"] == "qualification"
+    assert p["rate"] > p["baseline"]
+
+
+def approve_signal_lesson(rig: Rig, value: str = "recent_funding") -> str:
+    wf, fb = rig.services.workflow, rig.services.feedback
+    mid = ready(rig)
+    wf.build_strategy(mid)
+    p = wf.add_proposal(
+        mid,
+        f"Give {value.replace('_', ' ')} more weight in timing",
+        "5 sends: 60% vs 0%",
+        [],
+        dimension="signal_type",
+        value=value,
+    )
+    assert fb.decide_proposal(mid, p["id"], "approved")["ok"]
+    return mid
+
+
+def test_an_approved_signal_lesson_changes_the_next_missions_icp(rig: Rig) -> None:
+    approve_signal_lesson(rig)
+    nxt = ready(rig, "Reach more support teams next term")
+    icp = rig.services.workflow.build_icp(nxt)
+    assert icp["ok"] and "recent_funding" in icp["signal_types"]
+    assert any("approved lesson" in a for a in icp["assumptions"])
+
+
+def test_the_lesson_remembers_which_signal_it_was_about(rig: Rig) -> None:
+    mid = approve_signal_lesson(rig)
+    lesson = rig.services.feedback.lessons(mid)[0]
+    assert lesson["dimension"] == "signal_type" and lesson["value"] == "recent_funding"
+
+
+def test_a_lesson_about_something_else_adds_no_signal(rig: Rig) -> None:
+    wf, fb = rig.services.workflow, rig.services.feedback
+    mid = ready(rig)
+    wf.build_strategy(mid)
+    p = wf.add_proposal(
+        mid, "Put more effort into parents", "x", [], dimension="audience", value="parent"
+    )
+    fb.decide_proposal(mid, p["id"], "approved")
+    nxt = ready(rig, "Another goal")
+    icp = wf.build_icp(nxt)
+    assert "parent" not in icp["signal_types"]
+    assert not any("approved lesson" in a for a in icp["assumptions"])
+
+
 def test_a_holdout_target_does_not_get_the_lesson(rig: Rig) -> None:
     fb, mid, p = two_sources(rig)
     approve(rig, fb, mid, p)

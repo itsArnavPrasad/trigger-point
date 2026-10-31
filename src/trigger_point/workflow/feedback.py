@@ -49,6 +49,7 @@ MISSED_AFTER = timedelta(hours=2)
 USABLE = ("verified", "confirmed")
 STOP_KINDS = ("reply", "opted_out", "bounced")
 DEMO_TOUCHES = (("school_authority", 3), ("parent", 0))
+DEMO_SIGNALS = {"school_authority": ["topic_engagement"], "parent": ["active_hiring"]}
 
 
 class InsightIn(BaseModel):
@@ -328,6 +329,7 @@ class FeedbackService:
                     account_name=o["target_name"],
                     audience=o["audience"],
                     variant=o.get("variant", "none"),
+                    signal_types=o.get("signal_types", []),
                     strategy_version=o.get("strategy_version"),
                     sent_on=sent[0].get("sent_on") or self.wf.today(),
                     mode=mode,
@@ -664,6 +666,8 @@ class FeedbackService:
             "sources": len(change["outcome_ids"]),
             "single_source": False,
             "history": [],
+            "dimension": change.get("dimension"),
+            "value": change.get("value"),
             "mode": modes[0],
             "domain": self._domain(mission_id),
         }
@@ -749,6 +753,7 @@ class FeedbackService:
                     id=rid,
                     account_name=name,
                     audience=audience,
+                    signal_types=DEMO_SIGNALS[audience],
                     strategy_version=version,
                     sent_on=sent_on,
                     mode="replay",

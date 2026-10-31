@@ -184,6 +184,39 @@ def test_a_better_group_is_proposed_with_its_caveats() -> None:
     assert "correlation" in p["caveat"].lower()
 
 
+def test_a_send_counts_under_every_signal_that_justified_it() -> None:
+    both = [touch(i, signal_types=["topic_engagement", "active_hiring"]) for i in range(MIN_SAMPLE)]
+    got = groups(both, [])
+    assert got["signal_type:topic_engagement"]["n"] == MIN_SAMPLE
+    assert got["signal_type:active_hiring"]["n"] == MIN_SAMPLE
+
+
+def test_a_better_signal_is_proposed_by_name_for_qualification() -> None:
+    topic = [touch(i, signal_types=["topic_engagement"]) for i in range(MIN_SAMPLE)]
+    hiring = [touch(i + 100, signal_types=["active_hiring"]) for i in range(MIN_SAMPLE)]
+    report = compare([*topic, *hiring], [won(t) for t in topic[:3]], TODAY, ("live",))
+    p = next(x for x in report["proposals"] if x["dimension"] == "signal_type")
+    assert p["value"] == "topic_engagement" and p["target"] == "qualification"
+    assert p["rate"] == 0.6 and p["baseline"] == 0.0
+
+
+def test_a_touch_with_two_signals_does_not_pollute_its_own_baseline() -> None:
+    # Five touches carry both signals and win; five carry only hiring and lose. Topic engagement
+    # is on the winners only, so its baseline must be the hiring-only touches, not the winners.
+    both = [touch(i, signal_types=["topic_engagement", "active_hiring"]) for i in range(MIN_SAMPLE)]
+    hiring_only = [touch(i + 100, signal_types=["active_hiring"]) for i in range(MIN_SAMPLE)]
+    report = compare([*both, *hiring_only], [won(t) for t in both], TODAY, ("live",))
+    p = next(x for x in report["proposals"] if x["value"] == "topic_engagement")
+    assert p["rate"] == 1.0 and p["baseline"] == 0.0
+
+
+def test_touches_with_no_signal_are_simply_not_in_a_signal_group() -> None:
+    plain = [touch(i) for i in range(MIN_SAMPLE)]
+    assert not [
+        g for g in compare(plain, [], TODAY, ("live",))["groups"] if g["dimension"] == "signal_type"
+    ]
+
+
 def test_nothing_is_proposed_from_small_groups() -> None:
     a = [touch(i, "school_authority") for i in range(2)]
     b = [touch(i + 100, "parent") for i in range(2)]

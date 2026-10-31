@@ -127,3 +127,4 @@ pre { margin: 0; max-height: 280px; overflow: auto; font-size: 12px; white-space
 .flow-line { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
 .flow-line li:not(:last-child)::after { content: "\2192"; margin-left: 4px; } .flow-line li:last-child { color: var(--text); font-weight: 600; }
 .send { margin-top: 8px; display: grid; gap: 6px; } .send input { min-width: 0; max-width: 200px; }
+.inline { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; } .inline select { max-width: 220px; }

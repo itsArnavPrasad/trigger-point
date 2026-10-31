@@ -426,10 +426,16 @@ class WorkflowService:
                 raise StepError("no_profile", "the mission has no business profile", False)
             try:
                 ctx = self._contexts.get(m.context_id)
+                lessons = self.lessons_for(ctx.domain, m.mode)
                 gtm = self._missions.compile(
                     m.context_id,
                     initiated_by=ACTOR,
-                    lessons=lessons_block(self.lessons_for(ctx.domain, m.mode)),
+                    lessons=lessons_block(lessons),
+                    favoured_signals=[
+                        x["value"]
+                        for x in lessons
+                        if x.get("dimension") == "signal_type" and x.get("value")
+                    ],
                 )
             except ContextNotApproved as exc:
                 raise StepError("context_not_approved", str(exc), False) from exc
@@ -556,6 +562,44 @@ class WorkflowService:
             "audience": audience,
             "notes": str(fields.get("notes") or ""),
             "source": "user",
+        }
+        self.engine.save_record("target", rid, mission_id, record)
+        return {"ok": True, **record}
+
+    @guarded
+    def target_from_account(self, mission_id: str, account_id: int, audience: str) -> Result:
+        """A researched, qualified account as an outreach target. Why it is worth reaching comes
+        from the research run's own signals, so no one types it, and the learning loop can learn
+        which signals lead to meetings. A rejected account stays out."""
+        m = self.engine.mission(mission_id)
+        if audience not in AUDIENCES:
+            return {"ok": False, "error": "invalid_target", "message": "unknown audience"}
+        if m.research_id is None:
+            return {"ok": False, "error": "no_research", "message": "research the accounts first"}
+        found = next(
+            (
+                a
+                for a in self._research.get(m.research_id).accounts
+                if a.account.provider_company_id == account_id
+            ),
+            None,
+        )
+        if found is None or not found.account.name:
+            return {"ok": False, "error": "not_found", "message": f"account {account_id}"}
+        if found.score.status != "qualified":
+            message = f"the account is {found.score.status}"
+            return {"ok": False, "error": "not_qualified", "message": message}
+        active = [s for s in found.signals if s.status == "active"]
+        rid = stable_id("tgt", mission_id, found.account.name, audience)
+        record = {
+            "id": rid,
+            "name": found.account.name,
+            "audience": audience,
+            "notes": "",  # notes feed the writer; the why-now stays here, out of the message
+            "source": "discovered",
+            "account_id": account_id,
+            "signal_types": sorted({s.type for s in active}),
+            "why_now": [s.description for s in active],
         }
         self.engine.save_record("target", rid, mission_id, record)
         return {"ok": True, **record}
@@ -714,6 +758,8 @@ class WorkflowService:
             "prompt_version": OUTREACH_PROMPT_VERSION,
             "verifier": OUTREACH_VERSION,
             "variant": variant,
+            "signal_types": target.get("signal_types", []),
+            "account_id": target.get("account_id"),
             "lessons_used": [x["id"] for x in used],
             "strategy_version": self.strategy_version(mission_id),
             "step": (parent.get("step", 1) + 1) if parent else 1,
@@ -863,7 +909,13 @@ class WorkflowService:
 
     @guarded
     def add_proposal(
-        self, mission_id: str, change: str, evidence: str, outcome_ids: list[str]
+        self,
+        mission_id: str,
+        change: str,
+        evidence: str,
+        outcome_ids: list[str],
+        dimension: str | None = None,
+        value: str | None = None,
     ) -> Result:
         self.engine.mission(mission_id)
         rid = stable_id("prop", mission_id, len(self.proposals(mission_id)), change)
@@ -872,6 +924,8 @@ class WorkflowService:
             "change": change,
             "evidence": evidence,
             "outcome_ids": outcome_ids,
+            "dimension": dimension,  # what was compared, e.g. signal_type, so it can be acted on
+            "value": value,
             "status": "proposed",
         }
         self.engine.save_record("proposal", rid, mission_id, record)

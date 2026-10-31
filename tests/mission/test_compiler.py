@@ -2,7 +2,12 @@ from decimal import Decimal
 
 import pytest
 
-from trigger_point.mission.compiler import compile_plan, compile_search_request, relaxation_steps
+from trigger_point.mission.compiler import (
+    compile_plan,
+    compile_search_request,
+    favour_signals,
+    relaxation_steps,
+)
 from trigger_point.mission.models import MissionDraft, PersonaDraft
 from trigger_point.providers.crustdata.client import estimate_search_credits
 from trigger_point.providers.crustdata.models import Condition, ConditionGroup
@@ -26,6 +31,7 @@ def draft(**over: object) -> MissionDraft:
         max_accounts=10,
         assumptions=["Targets companies already on a helpdesk"],
         open_questions=[],
+        topic_keywords=[],
     )
     base.update(over)
     return MissionDraft(**base)  # type: ignore[arg-type]
@@ -118,6 +124,77 @@ def test_topic_engagement_with_no_topic_is_dropped_and_says_so() -> None:
     )
     assert plan.signal_types == ["active_hiring"]
     assert any("topic_engagement" in a and "keywords" in a for a in plan.assumptions)
+
+
+def test_a_topic_that_only_describes_the_buyer_is_dropped_with_a_note() -> None:
+    plan = base_plan(
+        icp_query="CBSE schools in Powai, Mumbai teaching Classes 6 to 10",
+        signal_types=["topic_engagement"],
+        topic_keywords=["AI in education", "edtech", "CBSE", "Classes 6 to 10"],
+    )
+    assert plan.topic_keywords == ["AI in education", "edtech"]
+    dropped = " ".join(a for a in plan.assumptions if "describes the buyer" in a)
+    assert "'CBSE'" in dropped and "'Classes 6 to 10'" in dropped
+
+
+def test_a_short_keyword_is_not_confused_with_a_longer_word() -> None:
+    plan = base_plan(
+        icp_query="schools in Powai, Mumbai",
+        signal_types=["topic_engagement"],
+        topic_keywords=["AI"],
+    )
+    assert plan.topic_keywords == ["AI"]  # "ai" is inside Powai and Mumbai, but not a word there
+
+
+def test_if_every_topic_only_describes_the_buyer_the_signal_is_dropped() -> None:
+    plan = base_plan(
+        icp_query="CBSE schools in Powai",
+        signal_types=["topic_engagement", "active_hiring"],
+        topic_keywords=["CBSE", "schools"],
+    )
+    assert plan.topic_keywords == [] and plan.signal_types == ["active_hiring"]
+    assert any("topic_engagement" in a and "keywords" in a for a in plan.assumptions)
+
+
+def test_the_model_must_answer_for_topic_keywords_every_time() -> None:
+    # Fields with defaults are optional in the strict JSON schema, and a live model skipped this
+    # one while choosing the signal that needs it. Required means it must say, even if empty.
+    assert "topic_keywords" in MissionDraft.model_json_schema()["required"]
+
+
+def base_plan(**over: object):  # type: ignore[no-untyped-def]
+    return compile_plan(draft(**over), seller_domain="s.example", credit_budget=5.0)
+
+
+def test_an_approved_lesson_adds_the_favoured_signal_and_says_why() -> None:
+    plan = favour_signals(base_plan(signal_types=["active_hiring"]), ["recent_funding"])
+    assert plan.signal_types == ["active_hiring", "recent_funding"]
+    assert plan.freshness_days["recent_funding"] == 90
+    assert any("recent_funding" in a and "approved lesson" in a for a in plan.assumptions)
+
+
+def test_a_signal_already_chosen_is_not_added_twice() -> None:
+    plan = favour_signals(base_plan(signal_types=["active_hiring"]), ["active_hiring"])
+    assert plan.signal_types == ["active_hiring"]
+    assert not any("approved lesson" in a for a in plan.assumptions)
+
+
+def test_a_favoured_topic_signal_without_keywords_is_skipped_with_a_note() -> None:
+    plan = favour_signals(base_plan(signal_types=["active_hiring"]), ["topic_engagement"])
+    assert plan.signal_types == ["active_hiring"]
+    assert any("topic_engagement" in a and "keywords" in a for a in plan.assumptions)
+
+
+def test_a_favoured_topic_signal_with_keywords_is_added() -> None:
+    plan = favour_signals(
+        base_plan(signal_types=["active_hiring"], topic_keywords=["AI"]), ["topic_engagement"]
+    )
+    assert "topic_engagement" in plan.signal_types
+
+
+def test_an_unknown_favoured_signal_is_ignored() -> None:
+    plan = favour_signals(base_plan(signal_types=["active_hiring"]), ["mind_reading"])
+    assert plan.signal_types == ["active_hiring"]
 
 
 def test_compilation_is_deterministic() -> None:

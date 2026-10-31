@@ -26,7 +26,7 @@ export interface MissionView {
   case: Record<string, any> | null; draft: Draft | null; gate: { passed: boolean; version: string } | null; gate_error: string | null
   costs: { entries: { source: string; amount: number; unit: string; basis: string; at: string }[]; claude_usd: number; crustdata_credits: Record<string, string> }
   strategy: { version: number; status: string; author: string; changes: string[]; mode: string; rolled_back_to: number | null; body: Record<string, any> }[]
-  targets: { id: string; name: string; audience: string; notes: string; source: string }[]
+  targets: { id: string; name: string; audience: string; notes: string; source: string; account_id?: number; signal_types?: string[]; why_now?: string[] }[]
   outreach: Outreach[]
   meetings: { id: string; title: string; held_on: string; account_name?: string | null; notes?: string; summary?: string; source: string; link?: string | null; needs_review?: boolean; match_basis?: string; progress?: string | null; strategy_version?: number | null; icp_version?: number | null }[]
   pipeline: { accounts: { account_id: number | null; account_name: string | null; stage: string; last_activity: string; next_action: string | null; value: number | null; currency: string | null; mode: string }[]; counts: Record<string, number>; criteria: Record<string, string>; open_pipeline: Record<string, number>; won_revenue: Record<string, number> }
@@ -45,7 +45,7 @@ export interface Learning {
   lifecycle: Record<string, { state: string; reached: string[] }>
   insights: { id: string; kind: string; text: string; basis: string; quote: string; speaker: string | null; status: string; account_name: string | null; original_text: string | null; source_link: string | null }[]
   lessons: Lesson[]; experiments: Experiment[]
-  decisions: { id: string; change: string; evidence: string; status: string }[]
+  decisions: { id: string; change: string; evidence: string; status: string; dimension?: string | null; value?: string | null }[]
   timeline: { version: number; author: string; changes: string[]; rolled_back_to: number | null; guidance: string[] }[]
   report: {
     counted: number; excluded: number; pending: number; attribution_gaps: number; maturity_days: number; min_sample: number

@@ -14,7 +14,7 @@ from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from trigger_point.workflow.gtm import ADVANCED, MIN_SAMPLE, Outcome
 
@@ -95,7 +95,7 @@ class Touch(BaseModel):
     account_name: str | None = None
     audience: str | None = None
     channel: str = "email"
-    signal_type: str | None = None
+    signal_types: list[str] = Field(default_factory=list)  # the active signals that justified it
     variant: str = "none"
     strategy_version: int | None = None
     sent_on: date
@@ -238,9 +238,12 @@ def _rate(touches: list[Touch], wins: dict[str, list[str]]) -> float:
     return sum(1 for t in touches if t.id in wins) / len(touches) if touches else 0.0
 
 
-def _value(t: Touch, dimension: str) -> str | None:
+def _values(t: Touch, dimension: str) -> list[str]:
+    """What a send is grouped under. A send can have several signals, so it counts under each."""
+    if dimension == "signal_type":
+        return list(dict.fromkeys(t.signal_types))
     value = getattr(t, dimension)
-    return None if value is None else str(value)
+    return [] if value is None else [str(value)]
 
 
 def _proposal(
@@ -289,9 +292,9 @@ def compare(
     for dimension in TARGETS:
         grouped: dict[str, list[Touch]] = defaultdict(list)
         for t in ready:
-            value = _value(t, dimension)
-            if value is not None:
+            for value in _values(t, dimension):
                 grouped[value].append(t)
+        with_value = {id(t): t for rows in grouped.values() for t in rows}.values()
         for value, rows in grouped.items():
             report["groups"].append(
                 {
@@ -303,7 +306,7 @@ def compare(
                     "enough": len(rows) >= MIN_SAMPLE,
                 }
             )
-            others = [t for k, v in grouped.items() if k != value for t in v]
+            others = [t for t in with_value if value not in _values(t, dimension)]
             if (
                 len(rows) >= MIN_SAMPLE
                 and len(others) >= MIN_SAMPLE

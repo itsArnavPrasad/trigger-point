@@ -8,7 +8,7 @@ from trigger_point.mission.models import SIGNAL_TYPES
 from trigger_point.models.context import CLAIM_LIST_FIELDS, BusinessContext
 from trigger_point.providers.crustdata.models import ROLE_FUNCTIONS
 
-PROMPT_VERSION = "mission-prompt-v3"
+PROMPT_VERSION = "mission-prompt-v4"
 
 MISSION_SYSTEM_PROMPT = f"""\
 You turn a seller's approved business context and revenue goal into a target-market hypothesis \
@@ -40,8 +40,10 @@ never choose it for schools, nonprofits, government bodies or bootstrapped small
 within the last months, about a topic that shows they are open to what the seller sells. Each \
 post is dated and has a public link. This works for buyers that hiring and funding data do not \
 cover, such as schools, clinics, agencies and local firms, as long as their staff post on a \
-professional network. It needs topic_keywords. For an AI tutor sold to schools, a teacher who \
-posts about AI is a stronger reason to reach out than the school merely existing.
+professional network. It REQUIRES topic_keywords: a plan that chooses it without keywords is \
+discarded. The topic is NOT the buyer's everyday subject (a school's maths or teaching methods); \
+it is their openness to the kind of change the seller brings. For an AI tutor sold to schools, a \
+teacher who posts about AI is a stronger reason to reach out than the school merely existing.
   Pick only signal_types you expect this buyer type to actually have. If none of them \
 realistically applies, leave signal_types empty and say so in open_questions or assumptions \
 instead of guessing: an empty, honest list is better than one that will find nothing.
@@ -50,17 +52,22 @@ on, existing customers named in the context). One company per item, written as \
 "Name (domain.com)" when the domain is known; no explanations.
 - tech_keywords: up to 6 product names the seller integrates with or replaces, exactly as \
 written in the context (e.g. "Zendesk"). Job postings that name them are evidence of fit.
-- topic_keywords: up to 6 short topics or phrases that someone at the buyer would post about if \
+- topic_keywords: 3 to 6 short topics or phrases that someone at the buyer would post about if \
 they were open to what the seller sells, worded as they would write them (for an AI maths tutor \
-sold to schools: "AI", "edtech", "digital learning"). Never the seller's own name or product. \
-Code searches public posts for these and checks each post really says one. Leave empty unless \
-topic_engagement is chosen.
+sold to schools: "AI", "edtech", "ChatGPT", "digital learning"; not "maths" or "teaching", which \
+every teacher posts about). Never the seller's own name or product. Code searches public posts \
+for these and checks each post really says one. MUST be filled whenever signal_types contains \
+topic_engagement; leave empty only if it does not.
 - dimensions: what the context says about any of these ICP dimensions: operational, problem, \
 value, budget, readiness, buying_process, economics. One short sentence each. Leave a dimension \
 out when the context does not support it; never guess.
 - max_accounts: how many accounts to research (at most 25).
 - assumptions: every choice you made that the context does not state.
 - open_questions: at most 3 questions whose answers would change the targeting.
+
+If the message contains <approved_lessons>, a person approved each one after seeing real \
+outcomes. Prefer the signal types and topics they favor, and say in assumptions when you did. \
+If one favors topic_engagement, choose it and give topic_keywords.
 
 Use only the context provided. Items marked [inference] are hypotheses, not facts.
 """

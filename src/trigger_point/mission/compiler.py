@@ -154,13 +154,34 @@ def _exclusions(items: list[str]) -> tuple[list[str], list[str]]:
 MAX_KEYWORDS = 6
 
 
-def _keywords(items: list[str]) -> list[str]:
+def _keywords(items: list[str], limit: int = MAX_KEYWORDS) -> list[str]:
     out: list[str] = []
     for item in items:
         kw = " ".join(item.split())[:40]
         if kw and kw.casefold() not in {k.casefold() for k in out}:
             out.append(kw)
-    return out[:MAX_KEYWORDS]
+    return out[:limit]
+
+
+def _words(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", text.casefold())
+
+
+def _topic_keywords(items: list[str], icp_query: str, notes: list[str]) -> list[str]:
+    """Topics that show openness to change. A word that is part of how the buyer is described
+    ("CBSE", "schools") matches nearly everything the buyer posts, so it shows nothing."""
+    described = set(_words(icp_query))
+    kept: list[str] = []
+    for kw in _keywords(items, limit=10**6):
+        words = _words(kw)
+        if words and all(w in described for w in words):
+            notes.append(
+                f"Dropped topic keyword {kw!r}: it describes the buyer, so it cannot show "
+                "openness to change."
+            )
+        else:
+            kept.append(kw)
+    return kept[:MAX_KEYWORDS]
 
 
 def _employee_ranges(lo: int | None, hi: int | None) -> list[str]:
@@ -179,7 +200,7 @@ def compile_plan(draft: MissionDraft, seller_domain: str, credit_budget: float) 
             signals.append(s)  # type: ignore[arg-type]
         elif s not in SIGNAL_TYPES:
             notes.append(f"Dropped unsupported signal type {s!r}.")
-    topic_keywords = _keywords(draft.topic_keywords)
+    topic_keywords = _topic_keywords(draft.topic_keywords, draft.icp_query, notes)
     if "topic_engagement" in signals and not topic_keywords:
         signals.remove("topic_engagement")
         notes.append(
@@ -216,6 +237,33 @@ def compile_plan(draft: MissionDraft, seller_domain: str, credit_budget: float) 
         dimensions={
             k: v.strip() for k, v in draft.dimensions.items() if k in DIMENSIONS and v.strip()
         },
+    )
+
+
+def favour_signals(plan: GTMPlan, favoured: list[str]) -> GTMPlan:
+    """What a person approved after seeing real outcomes: these signals led to meetings. They are
+    added in code, not suggested to the model, and the plan says so. A topic signal still needs
+    topic keywords to search with."""
+    signals = list(plan.signal_types)
+    notes = list(plan.assumptions)
+    freshness = dict(plan.freshness_days)
+    for name in dict.fromkeys(favoured):
+        if name not in SIGNAL_TYPES or name in signals:
+            continue
+        if name == "topic_engagement" and not plan.topic_keywords:
+            notes.append(
+                "An approved lesson favoured 'topic_engagement', but it has no topic keywords to "
+                "search with, so it was not added."
+            )
+            continue
+        signals.append(name)  # type: ignore[arg-type]
+        freshness[name] = DEFAULT_FRESHNESS_DAYS[name]
+        notes.append(
+            f"Added signal type {name!r}: an approved lesson, learned from real outcomes, "
+            "favoured it."
+        )
+    return plan.model_copy(
+        update={"signal_types": signals, "assumptions": notes, "freshness_days": freshness}
     )
 
 

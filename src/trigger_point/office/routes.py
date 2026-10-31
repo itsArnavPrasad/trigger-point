@@ -141,6 +141,12 @@ class Proposal(BaseModel):
     change: str = Field(min_length=3, max_length=300)
     evidence: str = Field(min_length=3, max_length=1000)
     outcome_ids: list[str] = Field(default_factory=list, max_length=500)
+    dimension: str | None = Field(default=None, pattern="^[a-z_]{1,40}$")
+    value: str | None = Field(default=None, pattern="^[A-Za-z0-9_ .-]{1,60}$")
+
+
+class AudiencePick(BaseModel):
+    audience: str = Field(min_length=1, max_length=40, pattern="^[a-z_]+$")
 
 
 class HookEvent(BaseModel):
@@ -320,11 +326,19 @@ def office_router(services: Services, office: OfficeStore, runner: MissionRunner
         known(mission_id)
         return done(mission_id, services.workflow.add_cost(mission_id, body.fields))
 
+    @r.post("/missions/{mission_id}/accounts/{account_id}/target", status_code=201)
+    def target_from_account(mission_id: str, account_id: int, body: AudiencePick) -> dict[str, Any]:
+        """A researched, qualified account as an outreach target. A rejected one is refused."""
+        known(mission_id)
+        return done(
+            mission_id, services.workflow.target_from_account(mission_id, account_id, body.audience)
+        )
+
     @r.post("/missions/{mission_id}/proposals", status_code=201)
     def add_proposal(mission_id: str, body: Proposal) -> dict[str, Any]:
         known(mission_id)
         out = services.workflow.add_proposal(
-            mission_id, body.change, body.evidence, body.outcome_ids
+            mission_id, body.change, body.evidence, body.outcome_ids, body.dimension, body.value
         )
         return done(mission_id, out)
 

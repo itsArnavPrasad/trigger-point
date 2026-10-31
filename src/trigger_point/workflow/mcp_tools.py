@@ -63,6 +63,13 @@ def register_workflow_tools(server: MCPServer, wf: WorkflowService) -> None:  # 
         as a user statement. Creates a new version, which needs approval again."""
         return wf.edit_business_profile(mission_id, field, values)
 
+    @server.tool(annotations=WRITES)
+    def target_from_account(mission_id: str, account_id: int, audience: str) -> dict[str, Any]:
+        """Make a qualified, researched account an outreach target. Its why-now comes from its own
+        research signals, so the learning loop can learn which signals work. A rejected account is
+        refused."""
+        return wf.target_from_account(mission_id, account_id, audience)
+
     @server.tool(annotations=READ_ONLY)
     def prepare_test_send(mission_id: str, outreach_id: str) -> dict[str, Any]:
         """The exact recipient, subject and body for a test email. Use these values unchanged."""

@@ -3,7 +3,7 @@
 
 import { useState } from 'react'
 import { post } from '../api'
-import { RESULT_TEXT, percent } from '../logic'
+import { RESULT_TEXT, percent, signalLabel } from '../logic'
 import type { Experiment, Lesson, MissionView, Outreach } from '../types'
 import { Card, Empty, Source, Stat, Tag } from './ui'
 
@@ -43,6 +43,30 @@ export function SendControls({ o, id }: { o: Outreach; id: string }) {
       </div>
       {error && <p className="alert bad">{error}</p>}
     </div>
+  )
+}
+
+export function QualifiedAccounts({ v, audiences }: { v: MissionView; audiences: Record<string, string> }) {
+  const id = v.mission.id
+  const { error, act } = useAct()
+  const [audience, setAudience] = useState(Object.keys(audiences)[0])
+  const taken = new Set(v.targets.filter(t => t.account_id !== undefined).map(t => t.account_id))
+  const rows = v.accounts.filter(a => a.score.status === 'qualified' && !taken.has(a.id))
+  if (!rows.length) return null
+  return (
+    <Card wide title="Qualified accounts" hint="Make one a target. Why it is worth reaching comes from its research, so the loop can learn which signals work">
+      <label className="inline">Writing to <select value={audience} onChange={e => setAudience(e.target.value)}>{Object.entries(audiences).map(([k, label]) => <option key={k} value={k}>{label}</option>)}</select></label>
+      {error && <p className="alert bad">{error}</p>}
+      <ul className="plain">{rows.map(a => {
+        const active = a.signals.filter(s => s.status === 'active')
+        return (
+          <li key={a.id}><b>{a.name ?? 'Unnamed'}</b> <Tag tone="good">qualified</Tag>{[...new Set(active.map(s => s.type))].map(t => <Tag key={t} tone="info">{signalLabel(t)}</Tag>)}
+            {active.map(s => <small key={s.id}>{s.description}</small>)}
+            <div className="row start"><button className="allow mini" onClick={() => void act(() => post(`/missions/${id}/accounts/${a.id}/target`, { audience }))}>Make target</button></div>
+          </li>
+        )
+      })}</ul>
+    </Card>
   )
 }
 
@@ -185,7 +209,7 @@ export function LearningPage({ v }: { v: MissionView }) {
         <Card wide key={`${p.dimension}${p.value}`} title={p.change} hint={`${p.sample} sends. Changes the ${p.target}`}>
           <p>{Math.round(p.rate * 100)}% reached a meeting, against {Math.round(p.baseline * 100)}% for the rest.</p>
           <p className="muted">{p.caveat} {p.checks.alternatives}</p>
-          <button className="ghost" onClick={() => void act(() => post(`/missions/${id}/proposals`, { change: p.change, evidence: `${p.sample} sends: ${Math.round(p.rate * 100)}% vs ${Math.round(p.baseline * 100)}%`, outcome_ids: p.outcome_ids }))}>Put up for decision</button>
+          <button className="ghost" onClick={() => void act(() => post(`/missions/${id}/proposals`, { change: p.change, evidence: `${p.sample} sends: ${Math.round(p.rate * 100)}% vs ${Math.round(p.baseline * 100)}%`, outcome_ids: p.outcome_ids, dimension: p.dimension, value: p.value }))}>Put up for decision</button>
         </Card>
       ))}
       {open.length > 0 && <Card wide title="Waiting for your decision" hint="Approving versions the strategy and starts measuring it">

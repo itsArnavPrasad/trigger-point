@@ -50,7 +50,7 @@ class MissionDraft(BaseModel):
     assumptions: list[str]
     open_questions: list[str]
     tech_keywords: list[str] = Field(default_factory=list)
-    topic_keywords: list[str] = Field(default_factory=list)
+    topic_keywords: list[str]  # required on purpose: a model may skip an optional field
     dimensions: dict[str, str] = Field(default_factory=dict)
 
 
