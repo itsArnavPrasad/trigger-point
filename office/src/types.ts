@@ -27,12 +27,30 @@ export interface MissionView {
   costs: { entries: { source: string; amount: number; unit: string; basis: string; at: string }[]; claude_usd: number; crustdata_credits: Record<string, string> }
   strategy: { version: number; status: string; author: string; changes: string[]; mode: string; rolled_back_to: number | null; body: Record<string, any> }[]
   targets: { id: string; name: string; audience: string; notes: string; source: string }[]
-  outreach: { id: string; target_name: string; audience: string; purpose: string; ask: string; subject: string; body: string; status: string; sending: string; content_hash: string; mode: string; test_sends?: { to: string; message_id: string }[]; attempts: { attempt: number | string; findings: { code: string; message: string }[] }[] }[]
-  meetings: { id: string; title: string; held_on: string; account_name?: string; notes?: string; source: string; link?: string }[]
+  outreach: Outreach[]
+  meetings: { id: string; title: string; held_on: string; account_name?: string | null; notes?: string; summary?: string; source: string; link?: string | null; needs_review?: boolean; match_basis?: string; progress?: string | null; strategy_version?: number | null; icp_version?: number | null }[]
   pipeline: { accounts: { account_id: number | null; account_name: string | null; stage: string; last_activity: string; next_action: string | null; value: number | null; currency: string | null; mode: string }[]; counts: Record<string, number>; criteria: Record<string, string>; open_pipeline: Record<string, number>; won_revenue: Record<string, number> }
   outcomes: { id: string; kind: string; account_name: string | null; occurred_on: string; mode: string; note: string | null }[]
-  learning: { proposals: { signal: string; sample: number; rate: number; baseline: number; change: string; caveat: string; outcome_ids: string[] }[]; too_small: string[]; excluded_fixture: number; counted: number; min_sample: number; decisions: { id: string; change: string; evidence: string; status: string }[] }
+  learning: Learning
   finance: { metrics: Record<string, number | null>; manual: { id: string; label: string; amount: number; currency: string; basis: string; recurring?: boolean; on?: string }[]; excluded_other_currency: number }
   messages: Message[]; run: { status: string; detail: string | null } | null; events: MissionEvent[]; running: boolean
+}
+export interface Outreach { id: string; target_id: string; target_name: string; audience: string; purpose: string; ask: string; subject: string; body: string; status: string; sending: string; content_hash: string; mode: string; step?: number; variant?: string; lessons_used?: string[]; test_sends?: { to: string; message_id: string }[]; manual_sends?: { sent_on: string }[]; schedule?: { send_at: string; timezone: string; state: string; channel: string; recipient: string; step: number; error: string | null } | null; attempts: { attempt: number | string; findings: { code: string; message: string }[] }[] }
+export interface Lesson { id: string; text: string; target: string; sources: number; single_source: boolean; status: string; history: string[]; strategy_version: number | null }
+export interface Experiment { id: string; change: string; version: number; metric: string; rule: string; status: string; result: { verdict: string; action: string; after_rate: number; after_n: number; before_rate: number; before_n: number } }
+export interface Learning {
+  demo: boolean; steps: { name: string; count: number }[]
+  replies: { id: string; target_name: string; sender: string; body: string; received_on: string; kind: string; label: string | null }[]
+  suppressions: { id: string; target_name: string; reason: string }[]
+  lifecycle: Record<string, { state: string; reached: string[] }>
+  insights: { id: string; kind: string; text: string; basis: string; quote: string; speaker: string | null; status: string; account_name: string | null; original_text: string | null; source_link: string | null }[]
+  lessons: Lesson[]; experiments: Experiment[]
+  decisions: { id: string; change: string; evidence: string; status: string }[]
+  timeline: { version: number; author: string; changes: string[]; rolled_back_to: number | null; guidance: string[] }[]
+  report: {
+    counted: number; excluded: number; pending: number; attribution_gaps: number; maturity_days: number; min_sample: number
+    groups: { dimension: string; value: string; n: number; wins: number; rate: number; enough: boolean }[]
+    proposals: { dimension: string; value: string; target: string; sample: number; rate: number; baseline: number; change: string; caveat: string; checks: { alternatives: string }; outcome_ids: string[] }[]
+  }
 }
 export interface Bootstrap { missions: MissionRow[]; health: Health[]; harness: Harness[]; mode: string; provider_modes: Record<string, string> }

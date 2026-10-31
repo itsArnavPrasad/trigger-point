@@ -4,7 +4,8 @@
 import { useState, type FormEvent } from 'react'
 import { post } from '../api'
 import { STAGE_ORDER, money } from '../logic'
-import type { MissionView } from '../types'
+import type { MissionView, Outreach } from '../types'
+import { Lifecycle, MeetingReview, Replies, SendControls } from './Loop'
 import { Card, Empty, Source, Stat, Tag } from './ui'
 
 function Field({ label, value, onChange, type = 'text', options }: { label: string; value: string; onChange: (v: string) => void; type?: string; options?: string[] }) {
@@ -80,7 +81,7 @@ export function StrategyPage({ v }: { v: MissionView }) {
 
 const AUDIENCE_LABEL: Record<string, string> = { school_authority: 'School authority', parent: 'Parent', company_buyer: 'Company buyer', partner: 'Partner' }
 
-function OutreachCard({ o, id }: { o: MissionView['outreach'][number]; id: string }) {
+function OutreachCard({ o, id, reached }: { o: Outreach; id: string; reached: string[] }) {
   const [editing, setEditing] = useState(false)
   const [body, setBody] = useState(o.body)
   const [error, setError] = useState('')
@@ -92,11 +93,15 @@ function OutreachCard({ o, id }: { o: MissionView['outreach'][number]; id: strin
       {editing ? <textarea className="wide-text" rows={7} value={body} onChange={e => setBody(e.target.value)} aria-label="Message" /> : <div className="email"><b>{o.subject}</b><p>{o.body}</p></div>}
       {last.findings.map((f, i) => <p key={i} className="alert bad">{f.message}</p>)}
       {error && <p className="alert bad">{error}</p>}
+      <Lifecycle reached={reached} />
+      {o.variant === 'holdout' && <p className="muted">Comparison group: written without the latest lessons.</p>}
+      {!!o.lessons_used?.length && <p className="muted">Written with {o.lessons_used.length} approved lesson{o.lessons_used.length === 1 ? '' : 's'}.</p>}
       <div className="row start">
         {editing ? <button className="allow" onClick={() => void act(() => post(`/missions/${id}/outreach/${o.id}`, { subject: o.subject, body }))}>Check and save</button> : <button className="ghost" onClick={() => setEditing(true)}>Edit</button>}
  {!editing && o.status !== 'rejected' && <button className="ghost" onClick={() => void act(() => post(`/missions/${id}/outreach/${o.id}/test-send`))}>Send to test inbox</button>}
         {!editing && o.status === 'verified' && <button className="allow" onClick={() => void act(() => post(`/missions/${id}/outreach/${o.id}/approve`, { content_hash: o.content_hash }))}>Approve this text</button>}
       </div>
+      {!editing && <SendControls o={o} id={id} />}
     </Card>
   )
 }
@@ -128,7 +133,8 @@ export function OutreachPage({ v }: { v: MissionView }) {
           <button className="allow" disabled={!form.f.name}>Add target</button>
         </form>
       </Card>
-      {[...v.outreach].reverse().map(o => <OutreachCard key={o.id} o={o} id={id} />)}
+      <Replies v={v} />
+      {[...v.outreach].reverse().map(o => <OutreachCard key={o.id} o={o} id={id} reached={v.learning.lifecycle[o.id]?.reached ?? []} />)}
     </div>
   )
 }
@@ -137,10 +143,11 @@ export function MeetingsPage({ v, wispr }: { v: MissionView; wispr: string }) {
   const form = useForm({ title: '', held_on: '', account_name: '', notes: '' }, f => post(`/missions/${v.mission.id}/meetings`, { fields: f }))
   return (
     <div className="grid">
-      <Card wide title="Meetings" hint={wispr === 'not_connected' ? 'Wispr Flow is not connected, so meetings are entered by hand' : undefined}>
-        {v.meetings.length ? <table><thead><tr><th>Meeting</th><th>Date</th><th>Account</th><th>Notes</th><th>Source</th></tr></thead><tbody>{v.meetings.map(m => <tr key={m.id}><td><b>{m.title}</b>{m.link && <small><Source url={m.link} label="Join link" /></small>}</td><td>{m.held_on}</td><td>{m.account_name ?? 'Unknown'}</td><td>{m.notes}</td><td><Tag>{m.source}</Tag></td></tr>)}</tbody></table> : <Empty>No meetings recorded.</Empty>}
-        <div className="row start"><button className="ghost" onClick={() => void post(`/missions/${v.mission.id}/test-meeting`)}>Book test meeting</button></div>
+      <Card wide title="Meetings" hint={wispr === 'connected' ? 'Wispr Flow is connected' : 'Wispr Flow is not connected, so meetings are entered by hand'}>
+        {v.meetings.length ? <table><thead><tr><th>Meeting</th><th>Date</th><th>Account</th><th>What came of it</th><th>Source</th></tr></thead><tbody>{v.meetings.map(m => <tr key={m.id}><td><b>{m.title}</b>{m.link && <small><Source url={m.link} label={m.source === 'wispr' ? 'Meeting notes' : 'Join link'} /></small>}</td><td>{m.held_on}</td><td>{m.account_name ?? 'Unknown'}</td><td>{m.summary || m.notes ? <small>{(m.summary || m.notes || '').slice(0, 160)}</small> : null}{m.source === 'wispr' && (m.progress ? <Tag>{m.progress}</Tag> : <div className="row start">{['progressed', 'stalled', 'disqualified'].map(p => <button key={p} className="ghost mini" onClick={() => void post(`/missions/${v.mission.id}/meetings/${m.id}/progress`, { progress: p })}>{p}</button>)}</div>)}</td><td><Tag>{m.source.replaceAll('_', ' ')}</Tag>{m.strategy_version && <small>Strategy v{m.strategy_version}</small>}</td></tr>)}</tbody></table> : <Empty>No meetings recorded.</Empty>}
+        <div className="row start"><button className="ghost" disabled={wispr !== 'connected'} onClick={() => void post(`/missions/${v.mission.id}/import-meetings`)}>Import from Wispr Flow</button><button className="ghost" onClick={() => void post(`/missions/${v.mission.id}/test-meeting`)}>Book test meeting</button></div>
       </Card>
+      <MeetingReview v={v} />
       <Card wide title="Record a meeting">
         <form className="form-grid" onSubmit={form.onSubmit}>
           <Field label="Title" value={form.f.title} onChange={form.set('title')} />
@@ -181,33 +188,6 @@ export function PipelinePage({ v }: { v: MissionView }) {
           {form.error && <p className="alert bad span">{form.error}</p>}
           <button className="allow" disabled={!form.f.account_name || !form.f.occurred_on}>Save outcome</button>
         </form>
-      </Card>
-    </div>
-  )
-}
-
-export function LearningPage({ v }: { v: MissionView }) {
-  const l = v.learning
-  const id = v.mission.id
-  return (
-    <div className="grid">
-      <Card wide title="What Trigger Point can learn so far" hint={`Needs at least ${l.min_sample} real outcomes per signal`}>
-        <div className="stats"><Stat label="Real outcomes counted" value={l.counted} /><Stat label="Fixture outcomes excluded" value={l.excluded_fixture} tone="warn" /><Stat label="Signals with too few" value={l.too_small.length} /></div>
-        {l.proposals.length === 0 && <Empty>No change to propose. Trigger Point will not guess from too little data.</Empty>}
-      </Card>
-      {l.proposals.map(p => (
-        <Card wide key={p.signal} title={p.change} hint={`${p.sample} outcomes`}>
-          <p>{Math.round(p.rate * 100)}% reached a meeting, against {Math.round(p.baseline * 100)}% for other signals.</p>
-          <p className="muted">{p.caveat}</p>
-          <button className="ghost" onClick={() => void post(`/missions/${id}/proposals`, { change: p.change, evidence: `${p.sample} outcomes: ${Math.round(p.rate * 100)}% vs ${Math.round(p.baseline * 100)}%`, outcome_ids: p.outcome_ids })}>Put up for decision</button>
-        </Card>
-      ))}
-      <Card wide title="Decisions">
-        {l.decisions.length ? <ul className="plain">{l.decisions.map(d => (
-          <li key={d.id}><b>{d.change}</b> <Tag tone={d.status === 'approved' ? 'good' : undefined}>{d.status}</Tag><small>{d.evidence}</small>
-            {d.status === 'proposed' && <div className="row start"><button className="allow mini" onClick={() => void post(`/missions/${id}/proposals/${d.id}`, { decision: 'approved' })}>Approve</button><button className="deny mini" onClick={() => void post(`/missions/${id}/proposals/${d.id}`, { decision: 'rejected' })}>Reject</button></div>}
-          </li>
-        ))}</ul> : <Empty>No proposals yet.</Empty>}
       </Card>
     </div>
   )

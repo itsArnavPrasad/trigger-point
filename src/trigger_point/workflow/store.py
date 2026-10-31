@@ -186,6 +186,12 @@ class Tx:
         ).fetchall()
         return [str(r[0]) for r in rows]
 
+    def all_records(self, kind: str) -> list[str]:
+        rows = self._c.execute(
+            "SELECT body FROM gtm_records WHERE kind = ? ORDER BY seq", (kind,)
+        ).fetchall()
+        return [str(r[0]) for r in rows]
+
     def next_seq(self, mission_id: str) -> int:
         row = self._c.execute(
             "SELECT COALESCE(MAX(seq), 0) FROM wf_events WHERE mission_id = ?", (mission_id,)

@@ -24,6 +24,14 @@ MISSION = re.compile(r"wm_[0-9a-f]{16}")
 GMAIL_SEND = "mcp__claude_ai_Gmail__send_message"
 CALENDAR_CREATE = "mcp__claude_ai_Google_Calendar__create_event"
 GUARDED = (GMAIL_SEND, CALENDAR_CREATE)
+# Read as returned, so a reply or a transcript never depends on a model retyping it.
+CAPTURED = (
+    "mcp__claude_ai_Gmail__get_thread",
+    "mcp__claude_ai_Gmail__get_message",
+    "mcp__claude_ai_Wispr_Flow__get_meeting",
+    "mcp__claude_ai_Wispr_Flow__get_meeting_by_calendar_id",
+)
+READS = (*CAPTURED, "mcp__claude_ai_Wispr_Flow__search_meetings")  # held for a click unless allowed
 MAX_WAIT_SECONDS = 3500  # under the 3600 s hook timeout in .claude/settings.json
 
 
@@ -137,6 +145,21 @@ def permission(d):
         return
 
 
+def capture(d):
+    if d.get("hook_event_name") == "PostToolUse" and d.get("tool_name") in CAPTURED:
+        call(
+            "/hook/capture",
+            {
+                "tool": d["tool_name"],
+                "tool_input": d.get("tool_input") if isinstance(d.get("tool_input"), dict) else {},
+                "tool_response": d.get("tool_response"),
+                "mission_id": mission_of(d),
+                "session_id": d.get("session_id"),
+            },
+            timeout=10.0,
+        )
+
+
 def telemetry(d):
     event = d.get("hook_event_name")
     tool = short_tool(d.get("tool_name"))
@@ -174,12 +197,13 @@ def main():
         d = json.loads(sys.stdin.read() or "{}")
         if d.get("hook_event_name") == "PermissionRequest":
             name = str(d.get("tool_name", ""))
-            if name.startswith("mcp__trigger_point__") or name in GUARDED:
+            if name.startswith("mcp__trigger_point__") or name in GUARDED or name in READS:
                 permission(d)
             return 0
         guarded = d.get("hook_event_name") == "PreToolUse" and d.get("tool_name") in GUARDED
         if guarded and guard(d["tool_name"], d.get("tool_input")):
             return 0
+        capture(d)
         telemetry(d)
     except (OSError, ValueError, KeyError, urllib.error.URLError):
         pass

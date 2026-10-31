@@ -89,3 +89,12 @@ export function tokenFromHash(hash: string): string | null {
   const m = /[#&]token=([0-9a-f]{32,128})/.exec(hash)
   return m ? m[1] : null
 }
+
+export const RESULT_TEXT: Record<string, string> = {
+  insufficient: 'Not enough results yet', improved: 'Improved', worse: 'Worse', no_change: 'No clear change',
+}
+
+/** A rate means nothing without its base, so no sends shows as unknown rather than 0%. */
+export function percent(rate: number, n: number): string {
+  return n ? `${Math.round(rate * 100)}%` : 'Unknown'
+}

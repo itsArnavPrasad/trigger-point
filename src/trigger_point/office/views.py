@@ -14,7 +14,7 @@ from trigger_point.mission import prompt as mission_prompt
 from trigger_point.office.store import OfficeStore
 from trigger_point.research.service import AccountResearch, ResearchRun
 from trigger_point.workflow import outreach, strategy
-from trigger_point.workflow.gtm import build_pipeline, finance_metrics, propose_changes
+from trigger_point.workflow.gtm import build_pipeline, finance_metrics
 from trigger_point.workflow.models import TASK_PLAN, TERMINAL
 
 ROLES: tuple[tuple[str, str, str], ...] = (
@@ -228,8 +228,9 @@ def _costs(office: OfficeStore, mission_id: str, credits: dict[str, str] | None)
 
 
 HARNESS_CONNECTORS = (
-    ("Gmail", "claude.ai Gmail", "Sends test emails to the test inbox"),
+    ("Gmail", "claude.ai Gmail", "Sends to the test inbox and reads replies"),
     ("Google Calendar", "claude.ai Google Calendar", "Books test meetings"),
+    ("Wispr Flow", "claude.ai Wispr Flow", "Reads meeting transcripts and notes"),
     ("Google Sheets", "claude.ai Google Sheets", "Would export accounts"),
     ("Crustdata plugin", "plugin:crustdata:crustdata", "Claude Code only, bypasses the adapter"),
     ("HubSpot", "plugin:sales:hubspot", "Would be the CRM"),
@@ -239,7 +240,7 @@ HARNESS_CONNECTORS = (
 )
 
 
-WIRED_CONNECTORS = {"claude.ai Gmail", "claude.ai Google Calendar"}
+WIRED_CONNECTORS = {"claude.ai Gmail", "claude.ai Google Calendar", "claude.ai Wispr Flow"}
 
 
 def harness_connectors(states: dict[str, str]) -> list[dict[str, Any]]:
@@ -256,15 +257,28 @@ def harness_connectors(states: dict[str, str]) -> list[dict[str, Any]]:
     ]
 
 
-def integration_health(services: Services) -> list[dict[str, Any]]:
+def integration_health(
+    services: Services, harness: dict[str, str] | None = None
+) -> list[dict[str, Any]]:
     """Declares each connector honestly. `state` never says connected without a real path."""
     s = services.settings
     modes = s.provider_modes
     runs = [r for r in services.store.list_runs() if r.outcome != "failed" and r.pages_ok]
     last_web = runs[-1].finished_at.isoformat() if runs and runs[-1].finished_at else None
-    crust = "fixture" if modes["crustdata"] == "replay" else "untested"
-    if modes["crustdata"] == "replay" and s.crustdata_api_key is None:
-        crust = "no_key"
+    live_discoveries = [
+        d for d in services.store.list_discoveries() if d.mode == "live" and d.outcome != "failed"
+    ]
+    last_crust = (
+        live_discoveries[0].finished_at.isoformat()
+        if live_discoveries and live_discoveries[0].finished_at
+        else None
+    )
+    if last_crust:
+        crust = "live"
+    elif modes["crustdata"] == "replay":
+        crust = "no_key" if s.crustdata_api_key is None else "fixture"
+    else:
+        crust = "untested"
     return [
         {
             "id": "claude",
@@ -296,7 +310,7 @@ def integration_health(services: Services) -> list[dict[str, Any]]:
             "purpose": "Companies, jobs, people",
             "state": crust,
             "access": "read",
-            "last_success": None,
+            "last_success": last_crust,
             "note": {
                 "untested": "No live call has been verified",
                 "no_key": "CRUSTDATA_API_KEY is empty, so only fixtures can run",
@@ -305,8 +319,10 @@ def integration_health(services: Services) -> list[dict[str, Any]]:
         {
             "id": "wispr",
             "name": "Wispr Flow",
-            "purpose": "Meeting notes",
-            "state": "not_connected",
+            "purpose": "Meeting notes and transcripts",
+            "state": "connected"
+            if (harness or {}).get("claude.ai Wispr Flow") == "connected"
+            else "not_connected",
             "access": "read",
             "last_success": None,
         },
@@ -440,10 +456,7 @@ def mission_view(services: Services, office: OfficeStore, mission_id: str) -> di
         "meetings": services.workflow.meetings(mission_id),
         "pipeline": build_pipeline(outcomes),
         "outcomes": [o.model_dump(mode="json") for o in outcomes],
-        "learning": {
-            **propose_changes(outcomes),
-            "decisions": services.workflow.proposals(mission_id),
-        },
+        "learning": services.feedback.view(mission_id),
         "finance": _finance(services, office, mission_id, run),
         "messages": office.messages(mission_id),
         "run": run_row,

@@ -119,3 +119,11 @@ pre { margin: 0; max-height: 280px; overflow: auto; font-size: 12px; white-space
 .empty { color: var(--muted); padding: 8px 0; } .gate { height: 100%; display: grid; place-content: center; gap: 8px; text-align: center; } code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 @media (max-width: 900px) { .stage { grid-template-columns: 1fr; grid-template-rows: 45% 1fr; } .rail { border-left: 0; border-top: 1px solid var(--line); } .grid { grid-template-columns: 1fr; } .overlay { padding: 0; } .dashboard { height: 100%; border-radius: 0; } }
 @media (prefers-reduced-motion: reduce) { .agent.s-running .sprite, .dashboard { animation: none; } }
+
+.loop { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 6px; margin: 0 0 10px; padding: 0; list-style: none; }
+.loop li { display: grid; grid-template-columns: auto 1fr; gap: 0 6px; padding: 7px 9px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); }
+.loop li span { font-size: 11px; } .loop li b { font-weight: 600; font-size: 12px; } .loop li em { grid-column: 2; font-style: normal; font-size: 18px; color: var(--muted); }
+.loop li.on { border-color: var(--accent); color: var(--text); } .loop li.on em { color: var(--accent); }
+.flow-line { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
+.flow-line li:not(:last-child)::after { content: "\2192"; margin-left: 4px; } .flow-line li:last-child { color: var(--text); font-weight: 600; }
+.send { margin-top: 8px; display: grid; gap: 6px; } .send input { min-width: 0; max-width: 200px; }

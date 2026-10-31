@@ -5,10 +5,12 @@ typed task failures; empty results stop and ask. Nothing here invents a value.""
 
 from __future__ import annotations
 
+import hashlib
+import html
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Concatenate
 
@@ -60,6 +62,7 @@ from trigger_point.workflow.engine import (
 )
 from trigger_point.workflow.gtm import Outcome, label_strategy
 from trigger_point.workflow.icp import IcpVersion, build_icp
+from trigger_point.workflow.loop import HOLDOUT_SHARE
 from trigger_point.workflow.models import (
     ApprovalGate,
     EvidenceRecord,
@@ -115,12 +118,12 @@ class StepResult:
     wait_reason: str | None = None
 
 
-def _guarded[**P](
-    fn: Callable[Concatenate[WorkflowService, P], Result],
-) -> Callable[Concatenate[WorkflowService, P], Result]:
+def guarded[S, **P](
+    fn: Callable[Concatenate[S, P], Result],
+) -> Callable[Concatenate[S, P], Result]:
     """Refusals are answers: the agent gets a typed reason, and the mission is unchanged."""
 
-    def inner(self: WorkflowService, /, *args: P.args, **kwargs: P.kwargs) -> Result:
+    def inner(self: S, /, *args: P.args, **kwargs: P.kwargs) -> Result:
         try:
             return fn(self, *args, **kwargs)
         except (MissionNotFound, TaskNotFound) as exc:
@@ -133,6 +136,32 @@ def _guarded[**P](
             return {"ok": False, "error": "approval_missing", "message": str(exc)}
 
     return inner
+
+
+def teach_modes(mission_mode: str) -> tuple[str, ...]:
+    """A fixture mission can show the loop on fixture data. Nothing else ever teaches."""
+    return ("replay",) if mission_mode == "replay" else ("live",)
+
+
+def outcome_mode(mission_mode: str, fields: dict[str, Any]) -> str:
+    """What an outcome is really about, whatever the mission's other providers were doing."""
+    if mission_mode == "replay":
+        return "replay"
+    if str(fields.get("account_name") or "").startswith("SAMPLE"):
+        return "test"
+    return "replay" if mission_mode == "mixed" and fields.get("account_id") else "live"
+
+
+def lessons_block(lessons: list[dict[str, Any]]) -> str:
+    if not lessons:
+        return ""
+    lines = "\n".join(f"- {html.escape(x['text'], quote=False)}" for x in lessons)
+    return f"\n<approved_lessons>\n{lines}\n</approved_lessons>"
+
+
+def _variant(target_id: str) -> str:
+    digest = hashlib.sha256(target_id.encode()).digest()[0]
+    return "holdout" if digest % HOLDOUT_SHARE == 0 else "treatment"
 
 
 def _provider_error(message: str) -> StepError:
@@ -179,6 +208,7 @@ class WorkflowService:
         self.engine = engine
         self._llm = llm
         self.test_recipients = settings.test_recipients
+        self.today: Callable[[], date] = lambda: datetime.now(UTC).date()
         self._contexts, self._missions, self._discovery = contexts, missions, discovery
         self._research, self._cases, self._drafts = research, cases, drafts
         self._store, self._settings = store, settings
@@ -249,7 +279,7 @@ class WorkflowService:
 
     # ── intake and profile ──────────────────────────────────────────────────────────────────
 
-    @_guarded
+    @guarded
     def create_mission(
         self, website_url: str, goal: str, brief: IntakeBrief | None = None
     ) -> Result:
@@ -332,7 +362,7 @@ class WorkflowService:
             "Approval records intent; nothing is sent."
         )
 
-    @_guarded
+    @guarded
     def request_user_approval(self, mission_id: str, gate: ApprovalGate) -> Result:
         m = self.engine.mission(mission_id)
         target, summary = self._approval_target(m, gate)
@@ -353,7 +383,7 @@ class WorkflowService:
             raise ApprovalMissing("that approval belongs to another mission")
         return a
 
-    @_guarded
+    @guarded
     def approve_business_profile(
         self, mission_id: str, approval_id: str, acknowledge_unsupported: bool
     ) -> Result:
@@ -376,7 +406,7 @@ class WorkflowService:
         self.engine.resolve_approval(a.id, "approved", HUMAN, a.target_hash)
         return {"ok": True, "state": self.engine.mission(mission_id).state}
 
-    @_guarded
+    @guarded
     def edit_business_profile(self, mission_id: str, field: str, values: list[str]) -> Result:
         """Applies the user's answer or correction. A new version needs review again."""
         m = self.engine.mission(mission_id)
@@ -389,13 +419,18 @@ class WorkflowService:
         self.engine.expire_approvals(mission_id, "business_profile")
         return {"ok": True, "version": ctx.version, "state": m.state}
 
-    @_guarded
+    @guarded
     def build_icp(self, mission_id: str) -> Result:
         def work(m: WorkflowMission, task: WorkflowTask) -> StepResult:
             if m.context_id is None:
                 raise StepError("no_profile", "the mission has no business profile", False)
             try:
-                gtm = self._missions.compile(m.context_id, initiated_by=ACTOR)
+                ctx = self._contexts.get(m.context_id)
+                gtm = self._missions.compile(
+                    m.context_id,
+                    initiated_by=ACTOR,
+                    lessons=lessons_block(self.lessons_for(ctx.domain, m.mode)),
+                )
             except ContextNotApproved as exc:
                 raise StepError("context_not_approved", str(exc), False) from exc
             except MissionCompileFailed as exc:
@@ -420,17 +455,18 @@ class WorkflowService:
 
         return self._step(mission_id, "build_icp", "build_icp", work)
 
-    @_guarded
+    @guarded
     def build_strategy(self, mission_id: str) -> Result:
         def work(m: WorkflowMission, task: WorkflowTask) -> StepResult:
             if m.context_id is None:
                 raise StepError("no_profile", "the mission has no business profile", False)
             ctx = self._contexts.get(m.context_id)
+            lessons = self.lessons_for(ctx.domain, m.mode)
             req = LlmRequest(
                 task="strategy",
                 replay_key=ctx.domain,
                 system=STRATEGY_PROMPT,
-                user=build_strategy_message(ctx),
+                user=build_strategy_message(ctx) + lessons_block(lessons),
                 schema=StrategyDraft,
                 max_tokens=8000,
             )
@@ -441,6 +477,7 @@ class WorkflowService:
             known = [c.text for c in ctx.competitors if c.status != "unsupported"]
             proof = [c.text for c in ctx.proof_points if c.status == "supported"]
             body = label_strategy(resp.output, known, proof).model_dump(mode="json")
+            body["lessons_used"] = [x["id"] for x in lessons]
             version = self._save_strategy(mission_id, body, "ICP Strategist", [], resp.mode)
             self.engine.publish_artifact(
                 task.id, "strategy", f"{mission_id}.strategy.{version}", "Strategy drafted", {}
@@ -480,13 +517,31 @@ class WorkflowService:
         )
         return version
 
+    def strategy_version(self, mission_id: str) -> int | None:
+        versions = self.strategy_versions(mission_id)
+        return versions[-1]["version"] if versions else None
+
+    def lessons_for(self, domain: str, mode: str) -> list[dict[str, Any]]:
+        """Approved lessons for this seller, across missions. Fixture lessons stay in fixture."""
+        wanted = teach_modes(mode)
+        return [
+            x
+            for x in self.engine.all_records("lesson")
+            if x["status"] == "approved" and x["domain"] == domain and x["mode"] in wanted
+        ]
+
+    def is_suppressed(self, mission_id: str, target_id: str) -> bool:
+        return any(
+            s["target_id"] == target_id for s in self.engine.records("suppression", mission_id)
+        )
+
     def targets(self, mission_id: str) -> list[dict[str, Any]]:
         return self.engine.records("target", mission_id)
 
     def outreach(self, mission_id: str) -> list[dict[str, Any]]:
         return self.engine.records("outreach", mission_id)
 
-    @_guarded
+    @guarded
     def add_target(self, mission_id: str, fields: dict[str, Any]) -> Result:
         """A recipient the user names. It is their statement, not a discovered fact."""
         self.engine.mission(mission_id)
@@ -505,14 +560,14 @@ class WorkflowService:
         self.engine.save_record("target", rid, mission_id, record)
         return {"ok": True, **record}
 
-    @_guarded
+    @guarded
     def add_sample_targets(self, mission_id: str) -> Result:
         """Made-up targets for testing. Named SAMPLE so they can never pass for real ones."""
         for fields in SAMPLE_TARGETS:
             self.add_target(mission_id, fields)
         return {"ok": True, "targets": len(self.targets(mission_id))}
 
-    @_guarded
+    @guarded
     def prepare_test_send(self, mission_id: str, outreach_id: str) -> Result:
         """Exactly what to send to the test inbox. The real recipient is never contacted."""
         record = self._outreach_record(mission_id, outreach_id)
@@ -520,6 +575,8 @@ class WorkflowService:
             return {"ok": False, "error": "not_found", "message": outreach_id}
         if not self.test_recipients:
             return {"ok": False, "error": "no_test_inbox", "message": "no test inbox is set"}
+        if self.is_suppressed(mission_id, record["target_id"]):
+            return {"ok": False, "error": "suppressed", "message": "this target opted out"}
         record = self._recheck(mission_id, record)
         if record["status"] not in ("verified", "approved"):
             return {"ok": False, "error": "not_verified", "message": "fix the findings first"}
@@ -533,7 +590,7 @@ class WorkflowService:
             ),
         }
 
-    @_guarded
+    @guarded
     def record_test_send(
         self, mission_id: str, outreach_id: str, to: str, message_id: str, thread_id: str
     ) -> Result:
@@ -545,14 +602,20 @@ class WorkflowService:
             return {"ok": False, "error": "not_test_inbox", "message": "only the test inbox"}
         sends = [
             *record.get("test_sends", []),
-            {"to": to, "message_id": message_id, "thread_id": thread_id},
+            {
+                "to": to,
+                "message_id": message_id,
+                "thread_id": thread_id,
+                "sent_on": self.today().isoformat(),
+            },
         ]
-        self.engine.save_record(
-            "outreach", outreach_id, mission_id, {**record, "test_sends": sends}
-        )
+        updated = {**record, "test_sends": sends}
+        if record.get("schedule", {}).get("state") in ("scheduled", "due"):
+            updated["schedule"] = {**record["schedule"], "state": "sent"}
+        self.engine.save_record("outreach", outreach_id, mission_id, updated)
         return {"ok": True, "test_sends": len(sends)}
 
-    @_guarded
+    @guarded
     def record_test_meeting(self, mission_id: str, fields: dict[str, Any]) -> Result:
         """A real calendar event for a test. Its outcome is marked so it can never teach."""
         m = self.engine.mission(mission_id)
@@ -581,8 +644,10 @@ class WorkflowService:
             raise ApprovalMissing("approve the business profile first")
         return ctx
 
-    @_guarded
-    def write_outreach(self, mission_id: str, target_id: str) -> Result:
+    @guarded
+    def write_outreach(
+        self, mission_id: str, target_id: str, follow_up_of: str | None = None
+    ) -> Result:
         """One message for one target. A failed check gets one revision, then stays rejected."""
         m = self.engine.mission(mission_id)
         ctx = self._approved_context(m)
@@ -591,7 +656,19 @@ class WorkflowService:
             return {"ok": False, "error": "not_found", "message": target_id}
         audience = AUDIENCES[target["audience"]]
         facts = approved_facts(ctx)
-        message = build_outreach_message(ctx, audience, target["name"], target["notes"])
+        lessons = self.lessons_for(ctx.domain, m.mode)
+        testing = any(x.get("experiment") for x in lessons)
+        variant = _variant(target_id) if testing else "none"
+        used = [] if variant == "holdout" else lessons
+        message = build_outreach_message(
+            ctx, audience, target["name"], target["notes"]
+        ) + lessons_block(used)
+        parent = self._outreach_record(mission_id, follow_up_of) if follow_up_of else None
+        if parent is not None:
+            message += (
+                f"\n<earlier_message>{html.escape(parent['body'], quote=False)}</earlier_message>"
+            )
+            message += "\nThis is a follow-up. Take a new angle. Do not repeat the earlier message."
         attempts = []
         wire = None
         findings = []
@@ -636,6 +713,11 @@ class WorkflowService:
             "mode": mode,
             "prompt_version": OUTREACH_PROMPT_VERSION,
             "verifier": OUTREACH_VERSION,
+            "variant": variant,
+            "lessons_used": [x["id"] for x in used],
+            "strategy_version": self.strategy_version(mission_id),
+            "step": (parent.get("step", 1) + 1) if parent else 1,
+            "follow_up_of": follow_up_of,
         }
         self.engine.save_record("outreach", rid, mission_id, record)
         return {"ok": True, **record}
@@ -664,7 +746,7 @@ class WorkflowService:
         self.engine.save_record("outreach", record["id"], mission_id, updated)
         return updated
 
-    @_guarded
+    @guarded
     def edit_outreach(self, mission_id: str, outreach_id: str, subject: str, body: str) -> Result:
         """A person's edit is checked like any other text, and any approval lapses."""
         record = self._outreach_record(mission_id, outreach_id)
@@ -689,7 +771,7 @@ class WorkflowService:
         self.engine.save_record("outreach", outreach_id, mission_id, updated)
         return {"ok": True, **updated}
 
-    @_guarded
+    @guarded
     def approve_outreach(self, mission_id: str, outreach_id: str, expected_hash: str) -> Result:
         """Records approval of this exact text. There is no path from here to sending."""
         record = self._outreach_record(mission_id, outreach_id)
@@ -704,19 +786,43 @@ class WorkflowService:
         self.engine.save_record("outreach", outreach_id, mission_id, updated)
         return {"ok": True, **updated}
 
+    def _link(self, mission_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+        """Traces an outcome to the message and strategy behind it, when the name matches."""
+        name = str(fields.get("account_name") or "").casefold()
+        sent = [
+            o
+            for o in self.outreach(mission_id)
+            if o["target_name"].casefold() == name
+            and (o.get("test_sends") or o.get("manual_sends"))
+        ]
+        if not sent:
+            return {"strategy_version": self.strategy_version(mission_id)}
+        return {
+            "outreach_id": sent[-1]["id"],
+            "audience": sent[-1]["audience"],
+            "strategy_version": sent[-1].get("strategy_version"),
+        }
+
     def outcomes(self, mission_id: str) -> list[Outcome]:
         return [Outcome.model_validate(o) for o in self.engine.records("outcome", mission_id)]
 
-    @_guarded
+    @guarded
     def record_outcome(
         self, mission_id: str, fields: dict[str, Any], mode: str | None = None
     ) -> Result:
         """A fact about the real world. It carries the mission's mode, so fixture never teaches."""
         m = self.engine.mission(mission_id)
         rid = stable_id("out", mission_id, len(self.outcomes(mission_id)), fields)
+        link = self._link(mission_id, fields)
         try:
             o = Outcome.model_validate(
-                {**fields, "id": rid, "mission_id": mission_id, "mode": mode or m.mode}
+                {
+                    **link,
+                    **fields,
+                    "id": rid,
+                    "mission_id": mission_id,
+                    "mode": mode or outcome_mode(m.mode, fields),
+                }
             )
         except ValidationError as exc:
             return {"ok": False, "error": "invalid_outcome", "message": exc.errors()[0]["msg"]}
@@ -726,7 +832,7 @@ class WorkflowService:
     def meetings(self, mission_id: str) -> list[dict[str, Any]]:
         return self.engine.records("meeting", mission_id)
 
-    @_guarded
+    @guarded
     def add_meeting(self, mission_id: str, fields: dict[str, Any]) -> Result:
         self.engine.mission(mission_id)
         rid = stable_id("mtg", mission_id, len(self.meetings(mission_id)), fields)
@@ -745,7 +851,7 @@ class WorkflowService:
     def costs(self, mission_id: str) -> list[dict[str, Any]]:
         return self.engine.records("cost", mission_id)
 
-    @_guarded
+    @guarded
     def add_cost(self, mission_id: str, fields: dict[str, Any]) -> Result:
         self.engine.mission(mission_id)
         rid = stable_id("cost", mission_id, len(self.costs(mission_id)), fields)
@@ -755,7 +861,7 @@ class WorkflowService:
     def proposals(self, mission_id: str) -> list[dict[str, Any]]:
         return self.engine.records("proposal", mission_id)
 
-    @_guarded
+    @guarded
     def add_proposal(
         self, mission_id: str, change: str, evidence: str, outcome_ids: list[str]
     ) -> Result:
@@ -771,7 +877,7 @@ class WorkflowService:
         self.engine.save_record("proposal", rid, mission_id, record)
         return {"ok": True, **record}
 
-    @_guarded
+    @guarded
     def decide_proposal(self, mission_id: str, proposal_id: str, decision: str) -> Result:
         """A person's decision. Approval versions the strategy; nothing changes silently."""
         found = next((p for p in self.proposals(mission_id) if p["id"] == proposal_id), None)
@@ -786,12 +892,11 @@ class WorkflowService:
         if not versions:
             return {"ok": False, "error": "no_strategy", "message": "nothing to version"}
         last = versions[-1]
-        version = self._save_strategy(
-            mission_id, last["body"], "user", [found["change"]], last["mode"]
-        )
+        body = {**last["body"], "guidance": [*last["body"].get("guidance", []), found["change"]]}
+        version = self._save_strategy(mission_id, body, "user", [found["change"]], last["mode"])
         return {"ok": True, "status": decision, "version": version}
 
-    @_guarded
+    @guarded
     def rollback_strategy(self, mission_id: str, version: int) -> Result:
         versions = self.strategy_versions(mission_id)
         target = next((v for v in versions if v["version"] == version), None)
@@ -827,7 +932,7 @@ class WorkflowService:
             icp.model_copy(update={"estimated_credits": gtm.estimated_credits})
         )
 
-    @_guarded
+    @guarded
     def edit_icp(self, mission_id: str, changes: dict[str, object], rationale: str) -> Result:
         """A human revision while the plan is under review. Discovery has not spent anything."""
         m = self.engine.mission(mission_id)
@@ -841,7 +946,7 @@ class WorkflowService:
         icp = self._version_icp(m, gtm, "user", rationale)
         return {"ok": True, "version": icp.version, "changes": icp.changes}
 
-    @_guarded
+    @guarded
     def approve_icp_plan(self, mission_id: str, approval_id: str) -> Result:
         a = self._pending(mission_id, approval_id)
         m = self.engine.mission(mission_id)
@@ -855,7 +960,7 @@ class WorkflowService:
 
     # ── research ────────────────────────────────────────────────────────────────────────────
 
-    @_guarded
+    @guarded
     def discover_accounts(self, mission_id: str) -> Result:
         def work(m: WorkflowMission, task: WorkflowTask) -> StepResult:
             if m.gtm_mission_id is None:
@@ -901,7 +1006,7 @@ class WorkflowService:
         records = [_record(e, a.account.name) for a in run.accounts for e in a.evidence]
         return self.engine.add_evidence(task.id, records)
 
-    @_guarded
+    @guarded
     def research_account_signals(self, mission_id: str) -> Result:
         def work(m: WorkflowMission, task: WorkflowTask) -> StepResult:
             if m.discovery_id is None:
@@ -927,7 +1032,7 @@ class WorkflowService:
 
         return self._step(mission_id, "research_signals", "research_account_signals", work)
 
-    @_guarded
+    @guarded
     def map_buying_committee(self, mission_id: str) -> Result:
         def work(m: WorkflowMission, task: WorkflowTask) -> StepResult:
             if m.research_id is None:
@@ -967,7 +1072,7 @@ class WorkflowService:
             records.append(r)
         return records
 
-    @_guarded
+    @guarded
     def verify_evidence(self, mission_id: str) -> Result:
         def work(m: WorkflowMission, task: WorkflowTask) -> StepResult:
             if m.research_id is None:
@@ -1023,7 +1128,7 @@ class WorkflowService:
             for e in case.evidence
         }
 
-    @_guarded
+    @guarded
     def score_account(self, mission_id: str, account_id: int | None) -> Result:
         def work(m: WorkflowMission, task: WorkflowTask) -> StepResult:
             if m.research_id is None:
@@ -1079,7 +1184,7 @@ class WorkflowService:
         summary = f"{case.account_name} scored {case.score.total} ({case.score.version})"
         return StepResult(output, summary, [case.id])
 
-    @_guarded
+    @guarded
     def draft_campaign(self, mission_id: str) -> Result:
         def work(m: WorkflowMission, task: WorkflowTask) -> StepResult:
             if m.research_id is None or m.selected_account_id is None:
@@ -1129,7 +1234,7 @@ class WorkflowService:
             },
         )
 
-    @_guarded
+    @guarded
     def run_quality_gate(self, mission_id: str) -> Result:
         def work(m: WorkflowMission, task: WorkflowTask) -> StepResult:
             if m.draft_id is None or m.research_id is None or m.selected_account_id is None:
@@ -1148,7 +1253,7 @@ class WorkflowService:
 
         return self._step(mission_id, "quality_gate", "run_quality_gate", work)
 
-    @_guarded
+    @guarded
     def approve_campaign_draft(
         self, mission_id: str, approval_id: str, expected_hash: str
     ) -> Result:
@@ -1166,19 +1271,19 @@ class WorkflowService:
         state = self.engine.mission(mission_id).state
         return {"ok": True, "state": state, "sent": False}
 
-    @_guarded
+    @guarded
     def reject_approval(self, mission_id: str, approval_id: str, reason: str) -> Result:
         a = self._pending(mission_id, approval_id)
         self.engine.resolve_approval(a.id, "rejected", HUMAN, a.target_hash, reason)
         return {"ok": True, "state": self.engine.mission(mission_id).state}
 
-    @_guarded
+    @guarded
     def cancel_mission(self, mission_id: str, reason: str) -> Result:
         return {"ok": True, "state": self.engine.cancel_mission(mission_id, reason).state}
 
     # ── reads ───────────────────────────────────────────────────────────────────────────────
 
-    @_guarded
+    @guarded
     def status(self, mission_id: str) -> Result:
         m = self.engine.mission(mission_id)
         events = self.engine.events(mission_id)
@@ -1195,7 +1300,7 @@ class WorkflowService:
             "last_seq": events[-1].seq if events else 0,
         }
 
-    @_guarded
+    @guarded
     def task_details(self, task_id: str) -> Result:
         task = self.engine.task(task_id)
         events = [e for e in self.engine.events(task.mission_id) if e.task_id == task_id]

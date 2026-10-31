@@ -196,6 +196,11 @@ class WorkflowEngine:
         with self._store.view() as v:
             return [json.loads(body) for body in v.records(kind, mission_id)]
 
+    def all_records(self, kind: str) -> list[dict[str, Any]]:
+        """Across missions: only for what a seller learned and carries forward."""
+        with self._store.view() as v:
+            return [json.loads(body) for body in v.all_records(kind)]
+
     def save_record(self, kind: str, record_id: str, mission_id: str, body: dict[str, Any]) -> None:
         with self._store.tx() as tx:
             tx.save_record(kind, record_id, mission_id, json.dumps(body, default=str))

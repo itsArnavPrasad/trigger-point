@@ -57,7 +57,7 @@ NEXT_ACTION = {
     "opportunity_created": "Agree the next step with the buyer",
 }
 ADVANCED = ("meeting_held", "opportunity_created", "closed_won")
-# A real sender does not exist, so email can only be a draft. Everything else is manual.
+# Email reaches the test inbox only, so for real recipients it is a draft. The rest is manual.
 DRAFT_ONLY_CHANNELS = {"email"}
 
 
@@ -77,6 +77,9 @@ class Outcome(BaseModel):
     currency: str | None = None
     reason: str | None = None
     note: str | None = None
+    outreach_id: str | None = None  # the message this came from, when it can be traced
+    audience: str | None = None
+    strategy_version: int | None = None
 
 
 def label_strategy(
@@ -158,45 +161,6 @@ def build_pipeline(outcomes: list[Outcome]) -> dict[str, Any]:
         "criteria": STAGE_CRITERIA,
         "open_pipeline": dict(open_pipeline),
         "won_revenue": dict(won),
-    }
-
-
-def propose_changes(outcomes: list[Outcome]) -> dict[str, Any]:
-    """Compares signals by how often they led to a meeting or better. It only proposes: a person
-    decides, and fixture data is excluded before anything is counted."""
-    real = [o for o in outcomes if o.mode == "live"]
-    groups: dict[str, list[Outcome]] = defaultdict(list)
-    for o in real:
-        if o.signal_type:
-            groups[o.signal_type].append(o)
-    too_small = [k for k, v in groups.items() if len(v) < MIN_SAMPLE]
-    proposals = []
-    for signal, rows in groups.items():
-        if len(rows) < MIN_SAMPLE:
-            continue
-        wins = [o for o in rows if o.kind in ADVANCED]
-        rate = len(wins) / len(rows)
-        others = [o for k, v in groups.items() if k != signal for o in v]
-        baseline = sum(1 for o in others if o.kind in ADVANCED) / len(others) if others else None
-        if baseline is None or rate <= baseline:
-            continue
-        proposals.append(
-            {
-                "signal": signal,
-                "sample": len(rows),
-                "rate": round(rate, 3),
-                "baseline": round(baseline, 3),
-                "change": f"Give {signal.replace('_', ' ')} more weight in timing",
-                "caveat": "Correlation, not causation. Check selection bias and delayed outcomes.",
-                "outcome_ids": [o.id for o in rows],
-            }
-        )
-    return {
-        "proposals": proposals,
-        "too_small": too_small,
-        "excluded_fixture": len(outcomes) - len(real),
-        "counted": len(real),
-        "min_sample": MIN_SAMPLE,
     }
 
 

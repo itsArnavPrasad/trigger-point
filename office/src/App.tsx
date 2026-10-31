@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { follow, get, post, token } from './api'
 import { Accounts, Activity, Campaign, Committee, Costs, EvidenceAudit, Gate, IcpPage, Integrations, Overview, ProfilePage, Signals } from './components/Dashboards'
-import { FinancePage, LearningPage, MeetingsPage, OutreachPage, PipelinePage, StrategyPage } from './components/Pages'
+import { FinancePage, MeetingsPage, OutreachPage, PipelinePage, StrategyPage } from './components/Pages'
+import { LearningPage } from './components/Loop'
 import Room, { DESKS } from './components/Room'
 import { LIVENESS_LABEL, agentLabel, flowSteps, liveness, modeLabel, permissionLabel, stateLabel } from './logic'
 import type { Agent, Bootstrap, MissionView, Permission } from './types'
@@ -148,6 +149,7 @@ export default function App() {
     return follow(() => void refresh(), setConnected)
   }, [refresh])
   useEffect(() => { if (missionId) void refresh() }, [missionId, refresh])
+  useEffect(() => { const t = setInterval(() => void refresh(), 30000); return () => clearInterval(t) }, [refresh])
   useEffect(() => { log.current?.scrollTo(0, 1e6) }, [view?.messages.length])
 
   const start = async (body: Record<string, string>) => {

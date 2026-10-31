@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentLabel, elapsed, flowSteps, liveness, modeLabel, permissionLabel, safeHref, tokenFromHash } from './logic'
+import { agentLabel, elapsed, flowSteps, liveness, modeLabel, percent, permissionLabel, safeHref, tokenFromHash } from './logic'
 import type { MissionView } from './types'
 
 const view = (over: Partial<MissionView> & { state?: string } = {}) => ({
@@ -59,5 +59,13 @@ describe('safety', () => {
     const now = Date.parse('2026-10-31')
     expect(elapsed(new Date(now - 30_000).toISOString(), null, now)).toBe('30s')
     expect(elapsed(null)).toBe('')
+  })
+})
+
+describe('percent', () => {
+  it('never shows a rate with no sends behind it', () => {
+    expect(percent(0, 0)).toBe('Unknown')
+    expect(percent(0.256, 8)).toBe('26%')
+    expect(percent(0, 8)).toBe('0%')
   })
 })
