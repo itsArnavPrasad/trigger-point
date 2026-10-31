@@ -31,6 +31,7 @@ from trigger_point.providers.crustdata.client import (
 from trigger_point.providers.crustdata.errors import CrustdataError
 from trigger_point.providers.crustdata.identity import Ambiguous, Resolved, resolve_identity
 from trigger_point.providers.crustdata.models import Company, CompanySearchRequest
+from trigger_point.providers.crustdata.names import canonical_plan
 from trigger_point.store.db import Store
 
 
@@ -179,6 +180,7 @@ class DiscoveryRun(BaseModel):
     outcome: Literal["running", "completed", "completed_empty", "failed"] = "running"
     seller_identity: str | None = None
     relaxations: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
     accounts: list[Company] = Field(default_factory=list)
     rejected: list[RejectedCompany] = Field(default_factory=list)
     calls: list[CallRecord] = Field(default_factory=list)
@@ -246,17 +248,19 @@ class DiscoveryService:
             run.seller_identity = f"ambiguous: {resolution.reason}; excluded by domain only"
         else:
             run.seller_identity = "not found in Crustdata; excluded by domain only"
-        request = CompanySearchRequest.model_validate(mission.search_request)
+        plan, run.notes = canonical_plan(client, mission.plan)
+        if plan == mission.plan:
+            request = CompanySearchRequest.model_validate(mission.search_request)
+        else:
+            request = compile_search_request(plan)
         page = client.search_companies(request).data
         if not page.companies:
-            for step in relaxation_steps(mission.plan):
+            for step in relaxation_steps(plan):
                 run.relaxations.append(step.description)
                 page = client.search_companies(compile_search_request(step.plan)).data
                 if page.companies:
                     break
-        run.accounts, run.rejected = select_accounts(
-            page.companies, mission.plan, seller_domain, seller_id
-        )
+        run.accounts, run.rejected = select_accounts(page.companies, plan, seller_domain, seller_id)
         run.outcome = "completed" if run.accounts else "completed_empty"
 
     def get(self, discovery_id: str) -> DiscoveryRun | None:

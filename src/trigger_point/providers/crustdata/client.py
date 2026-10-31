@@ -19,6 +19,7 @@ from pydantic import TypeAdapter, ValidationError
 from trigger_point.config import Mode
 from trigger_point.providers.crustdata.errors import CrustdataError, error_from_response
 from trigger_point.providers.crustdata.models import (
+    AUTOCOMPLETE_FIELDS,
     CompanySearchPage,
     CompanySearchRequest,
     ContactEnrichRequest,
@@ -36,6 +37,7 @@ from trigger_point.providers.crustdata.models import (
     PostSearchRequest,
     PostSearchResponse,
     SearchResponse,
+    Suggestions,
     normalise_company,
     normalise_contacts,
     normalise_job,
@@ -290,6 +292,17 @@ class CrustdataClient:
         )
         receipt.result_count = len(page.posts)
         return ProviderResult(page, receipt)
+
+    def autocomplete_company(
+        self, field: str, query: str, limit: int = 8
+    ) -> ProviderResult[list[str]]:
+        if field not in AUTOCOMPLETE_FIELDS:
+            raise ValueError(f"{field!r} is not a supported Crustdata autocomplete field")
+        body = {"field": field, "query": query, "limit": limit}
+        data, receipt = self._call("POST", "/company/search/autocomplete", body, None, Decimal(0))
+        return ProviderResult(
+            self._parse(receipt, lambda: Suggestions.model_validate(data).values()), receipt
+        )
 
     def endpoint_access(
         self, path: str | None = None, category: str | None = None

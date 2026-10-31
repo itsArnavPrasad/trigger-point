@@ -216,6 +216,22 @@ class _Lenient(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+# Free lookup of the values Crustdata really holds for a text field. Matching on these is exact and
+# case-sensitive, so a name is resolved here before a paid search uses it.
+AUTOCOMPLETE_FIELDS: frozenset[str] = frozenset({"basic_info.industries", "locations.headquarters"})
+
+
+class _Suggestion(_Lenient):
+    value: str
+
+
+class Suggestions(_Lenient):
+    suggestions: list[_Suggestion] = []
+
+    def values(self) -> list[str]:
+        return [x.value for x in self.suggestions if x.value]
+
+
 class BasicInfo(_Lenient):
     name: str | None = None
     primary_domain: str | None = None

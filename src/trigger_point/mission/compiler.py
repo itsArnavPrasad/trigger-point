@@ -340,6 +340,12 @@ def relaxation_steps(plan: GTMPlan) -> list[RelaxationStep]:
     if current.employee_ranges:
         current = current.model_copy(update={"employee_ranges": []})
         steps.append(RelaxationStep("drop company-size filter", current))
+    while current.places and all(p.count(",") >= 2 for p in current.places):
+        # "Powai, Mumbai, Maharashtra, India" -> "Mumbai, Maharashtra, India": the neighbourhood is
+        # what a record rarely says, the city is what it usually does.
+        wider = [p.split(",", 1)[1].strip() for p in current.places]
+        current = current.model_copy(update={"places": list(dict.fromkeys(wider))})
+        steps.append(RelaxationStep(f"widen place to {'; '.join(current.places)}", current))
     if current.places:
         current = current.model_copy(update={"places": []})
         steps.append(RelaxationStep("drop place filter", current))

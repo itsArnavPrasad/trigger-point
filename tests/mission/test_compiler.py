@@ -318,3 +318,28 @@ def test_no_freshness_window_exceeds_the_120_day_policy() -> None:
     from trigger_point.mission.models import DEFAULT_FRESHNESS_DAYS
 
     assert max(DEFAULT_FRESHNESS_DAYS.values()) <= 120
+
+
+def test_a_place_is_widened_one_part_at_a_time_before_it_is_dropped() -> None:
+    from tests.research.factories import plan
+
+    p = plan(places=["Powai, Mumbai, Maharashtra, India"], industries=[], employee_ranges=[])
+    steps = [s.description for s in relaxation_steps(p)]
+    assert steps[:3] == [
+        "widen place to Mumbai, Maharashtra, India",
+        "widen place to Maharashtra, India",
+        "drop place filter",
+    ]
+
+
+def test_widening_keeps_the_other_filters() -> None:
+    from tests.research.factories import plan
+
+    p = plan(
+        places=["Powai, Mumbai, India"],
+        industries=["Primary/Secondary Education"],
+        employee_ranges=[],
+    )
+    first = relaxation_steps(p)[0]
+    assert first.plan.places == ["Mumbai, India"]
+    assert first.plan.industries == ["Primary/Secondary Education"]
