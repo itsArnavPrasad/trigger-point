@@ -197,6 +197,13 @@ def test_a_meeting_note_keeps_its_source_and_records_the_outcome(rig: Rig) -> No
     assert [o.kind for o in wf.outcomes(mid)] == ["meeting_held"]
 
 
+def test_a_future_meeting_counts_as_booked_not_held(rig: Rig) -> None:
+    mid = advance_to_draft(rig)
+    wf = rig.services.workflow
+    wf.add_meeting(mid, {"title": "Intro", "held_on": "2999-01-01", "account_name": "Ledgerloop"})
+    assert [o.kind for o in wf.outcomes(mid)] == ["meeting_booked"]
+
+
 def test_a_proposal_needs_approval_creates_a_version_and_can_roll_back(rig: Rig) -> None:
     mid = advance_to_draft(rig)
     wf = rig.services.workflow

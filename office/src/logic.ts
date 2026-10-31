@@ -53,6 +53,28 @@ export function flowSteps(m: Pick<Mission, 'state' | 'resume_state'>) {
   return FLOW.map((state, i) => ({ state, label: stateLabel(state), phase: m.state === 'COMPLETE' || i < at ? 'done' : i === at ? 'current' : 'todo' }))
 }
 
+/** Five plain-language phases over the mission's state machine, for the dashboard's journey track. */
+export const JOURNEY = [
+  { id: 'understand', label: 'Understand', states: ['RECEIVED', 'PROFILE_REVIEW'] },
+  { id: 'target', label: 'Target', states: ['ICP_READY'] },
+  { id: 'research', label: 'Research', states: ['ACCOUNTS_FOUND', 'SIGNALS_RESEARCHED', 'PEOPLE_MAPPED', 'EVIDENCE_VERIFIED'] },
+  { id: 'engage', label: 'Engage', states: ['CAMPAIGN_DRAFTED', 'USER_APPROVAL'] },
+  { id: 'learn', label: 'Learn', states: ['COMPLETE'] },
+]
+
+export function journey(m: Pick<Mission, 'state' | 'resume_state'>) {
+  const s = FLOW.includes(m.state) ? m.state : m.resume_state ?? ''
+  const at = JOURNEY.findIndex(p => p.states.includes(s))
+  return JOURNEY.map((p, i) => ({ id: p.id, label: p.label, phase: at < 0 || i > at ? 'todo' : i < at ? 'done' : 'current' }))
+}
+
+/** Upcoming meetings soonest first, past meetings latest first. Dates are ISO days. */
+export function splitMeetings<T extends { held_on: string }>(meetings: T[], today: string) {
+  const upcoming = meetings.filter(m => m.held_on >= today).sort((a, b) => a.held_on.localeCompare(b.held_on))
+  const past = meetings.filter(m => m.held_on < today).sort((a, b) => b.held_on.localeCompare(a.held_on))
+  return { upcoming, past }
+}
+
 /** What the office can vouch for. A stopped stream means Connection lost, never "still running". */
 export function agentLabel(a: Pick<Agent, 'status'>, connected: boolean): string {
   if (!connected) return a.status === 'running' ? 'Connection lost' : statusLabel(a.status)
