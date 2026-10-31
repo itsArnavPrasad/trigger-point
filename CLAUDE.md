@@ -30,7 +30,7 @@ Read `docs/FOUNDER_CONTEXT.md` first. It covers who the founders are, the AI tut
 2. **Facts and hypotheses are different types.** A hypothesis may be useful but must be explicitly labeled as inference.
 3. **No unsupported claims.** Every externally verifiable claim needs a URL, retrieved timestamp, relevant excerpt, and verification status.
 4. **Scoring is deterministic code.** The LLM may extract facts or explain scores but must never be the authority that computes final scores.
-5. **Human approval is default-deny.** Never send an email, LinkedIn message, or perform an irreversible external write without explicit approval of the exact action.
+5. **Approval is delegated, scoped and audited.** Nothing is sent or written externally unless the founder approved the exact action OR a standing Autopilot policy they set covers it (recipient allow-list, credit cap, daily cap, meeting window, hash-bound text). Autopilot only ever answers a held prompt, logs every answer, and holds anything it is unsure about. Learning decisions (lessons, plans, experiments, proposals) and LinkedIn are never delegated. The send guard in `scripts/office_hook.py` stays the floor and fails closed.
 6. **Unknown is not false and is not permission to guess.** Preserve missing fields as `unknown` / `null`; surface coverage gaps.
 7. **Provider isolation.** Crustdata and web providers live behind adapters with validated, normalized internal contracts.
 8. **Cost and reliability are product features.** Add caching, request budgets, rate-limit handling, idempotency, timeouts, retries with backoff, and a run receipt.

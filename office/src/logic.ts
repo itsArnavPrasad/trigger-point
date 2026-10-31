@@ -247,3 +247,34 @@ const SIGNAL_LABELS: Record<string, string> = {
 export function signalLabel(type: string): string {
   return SIGNAL_LABELS[type] ?? type.replaceAll('_', ' ')
 }
+
+const human = (s: string) => s.replaceAll('_', ' ').replace(/^./, c => c.toUpperCase())
+
+/** A short, human reason an Autopilot step was held or done. Falls back to the server's own words. */
+export function autopilotLine(e: { kind: string; decision: string; reason: string; tool: string | null }): string {
+  if (!e.tool) return e.decision === 'allow' ? e.reason : `${e.reason}. Waiting for you`
+  const what = e.tool ? permissionToolName(e.tool) : e.kind === 'control' ? 'Autopilot' : human(e.kind)
+  return e.decision === 'allow' ? `${what}: done for you` : `${what}: waiting for you. ${e.reason}`
+}
+
+function permissionToolName(tool: string): string {
+  const t = tool.replace('mcp__trigger_point__', '')
+  if (t.includes('Gmail')) return 'Sent an email'
+  if (t.includes('Calendar')) return 'Booked a meeting'
+  return human(t)
+}
+
+export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+export const daysLabel = (d: number[]) => (d.join() === '0,1,2,3,4' ? 'Mon–Fri' : d.map(i => WEEKDAYS[i]).join(', '))
+
+const CONVERSATION: Record<string, [string, string]> = {
+  awaiting_reply: ['Waiting for a reply', ''], replying: ['Replying', 'info'], booking: ['Booking a time', 'info'],
+  booked: ['Meeting booked', 'good'], declined: ['Said no', 'bad'], stalled: ['No answer', 'warn'], needs_you: ['Needs you', 'warn'],
+}
+export const conversationLabel = (state: string): [string, string] => CONVERSATION[state] ?? [human(state), '']
+/** The last thing the other person wrote, shortened. */
+export function lastWords(turns: { who: string; text: string }[], max = 120): string {
+  const t = [...turns].reverse().find(x => x.who === 'them')
+  const text = t ? t.text.split(/\s+/).join(' ') : ''
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}

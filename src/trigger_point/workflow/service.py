@@ -191,6 +191,27 @@ def _items(items: list[CaseItem]) -> list[dict[str, Any]]:
     return [i.model_dump(mode="json") for i in items]
 
 
+def _buyer(match: Any) -> dict[str, str]:
+    """The person to write to, and their business email if Crustdata supplied one. This stays on
+    the target record for the founder; it is never put in a prompt, a draft or an event."""
+    if match is None or not match.person.name:
+        return {}
+    emails = [c for c in match.person.contact if c.kind == "email"]
+    emails.sort(key=lambda c: c.label != "business")
+    out = {"buyer_name": match.person.name, "buyer_title": match.person.current_title or ""}
+    if emails:
+        out["buyer_email"] = emails[0].value
+    return out
+
+
+def audience_for(industries: list[str]) -> str:
+    """Who we are writing to, from what the account is. School-like accounts reach an authority."""
+    text = " ".join(industries).casefold()
+    return (
+        "school_authority" if any(w in text for w in ("education", "school")) else "company_buyer"
+    )
+
+
 class WorkflowService:
     def __init__(
         self,
@@ -600,6 +621,7 @@ class WorkflowService:
             "account_id": account_id,
             "signal_types": sorted({s.type for s in active}),
             "why_now": [s.description for s in active],
+            **_buyer(found.best_person),
         }
         self.engine.save_record("target", rid, mission_id, record)
         return {"ok": True, **record}
@@ -617,22 +639,37 @@ class WorkflowService:
         record = self._outreach_record(mission_id, outreach_id)
         if record is None:
             return {"ok": False, "error": "not_found", "message": outreach_id}
-        if not self.test_recipients:
+        live = self._settings.outreach_mode == "live"
+        target = self._target(mission_id, record["target_id"])
+        buyer_email = str((target or {}).get("buyer_email") or "").strip()
+        if live and not buyer_email:
+            return {"ok": False, "error": "no_recipient", "message": "no email for this person"}
+        if not live and not self.test_recipients:
             return {"ok": False, "error": "no_test_inbox", "message": "no test inbox is set"}
         if self.is_suppressed(mission_id, record["target_id"]):
             return {"ok": False, "error": "suppressed", "message": "this target opted out"}
         record = self._recheck(mission_id, record)
         if record["status"] not in ("verified", "approved"):
             return {"ok": False, "error": "not_verified", "message": "fix the findings first"}
+        if live:  # UNVERIFIED: live sending has not been exercised against a real inbox
+            return {
+                "ok": True,
+                "to": [buyer_email],
+                "subject": record["subject"],
+                "body": record["body"],
+            }
+        note = f"Written for {record['target_name']}, who was not contacted."
+        if target and buyer_email:
+            note = f"Demo: in live mode this goes to {target['buyer_name']} <{buyer_email}>."
         return {
             "ok": True,
             "to": [self.test_recipients[0]],
             "subject": f"[Trigger Point test] {record['subject']}",
-            "body": (
-                f"{record['body']}\n\n---\nTrigger Point test. Written for {record['target_name']}, "
-                "who was not contacted."
-            ),
+            "body": f"{record['body']}\n\n---\nTrigger Point test. {note}",
         }
+
+    def _target(self, mission_id: str, target_id: str) -> dict[str, Any] | None:
+        return next((t for t in self.targets(mission_id) if t["id"] == target_id), None)
 
     @guarded
     def record_test_send(
@@ -642,8 +679,12 @@ class WorkflowService:
         record = self._outreach_record(mission_id, outreach_id)
         if record is None:
             return {"ok": False, "error": "not_found", "message": outreach_id}
-        if to.strip().casefold() not in self.test_recipients:
-            return {"ok": False, "error": "not_test_inbox", "message": "only the test inbox"}
+        allowed = set(self.test_recipients)
+        if self._settings.outreach_mode == "live":
+            target = self._target(mission_id, record["target_id"]) or {}
+            allowed = {str(target.get("buyer_email") or "").strip().casefold()} - {""}
+        if to.strip().casefold() not in allowed:
+            return {"ok": False, "error": "not_test_inbox", "message": "only the allowed inbox"}
         sends = [
             *record.get("test_sends", []),
             {

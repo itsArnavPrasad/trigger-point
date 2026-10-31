@@ -7,6 +7,7 @@ import Icon from './Icon'
 import { JOURNEY, STAGE_ORDER, agentLabel, journey, meetingStatus, modeLabel, permissionLabel, splitMeetings, stateLabel } from '../logic'
 import type { Account, MissionView, Permission } from '../types'
 import { MeetButton, Tag } from './ui'
+import { AutopilotBar, Conversations } from './Autopilot'
 
 type Go = (page: string) => void
 
@@ -107,7 +108,7 @@ export function NeedsYou({ v, onAnswer, onReview }: { v: MissionView; onAnswer: 
         <h3>{v.permissions.length === 1 ? 'One decision needs you' : `${v.permissions.length} decisions need you`}</h3>
         {v.permissions.map(p => (
           <div className="needs-row" key={p.id}>
-            <span>{permissionLabel(p)}</span>
+            <span>{permissionLabel(p)}{v.autopilot?.held[p.id] && <small className="held-why">Autopilot held this: {v.autopilot.held[p.id]}</small>}</span>
             <button className="btn plain" onClick={() => onReview(p)}>Review</button>
             <button className="btn destructive" onClick={() => onAnswer(p, 'deny')}>Deny</button>
             <button className="btn primary" onClick={() => onAnswer(p, 'allow')}>Approve</button>
@@ -118,8 +119,8 @@ export function NeedsYou({ v, onAnswer, onReview }: { v: MissionView; onAnswer: 
   )
 }
 
-export default function Home({ v, connected, live, go, onAnswer, onReview, onNotes, onAgent, onNewMission, onCancel }: {
-  v: MissionView; connected: boolean; live: string; go: Go; onNotes: (meetingId: string) => void; onAgent: () => void; onNewMission: () => void; onCancel: () => void
+export default function Home({ v, connected, live, go, onAnswer, onReview, onNotes, onAgent, onNewMission, onCancel, onChanged }: {
+  v: MissionView; onChanged: () => void; connected: boolean; live: string; go: Go; onNotes: (meetingId: string) => void; onAgent: () => void; onNewMission: () => void; onCancel: () => void
   onAnswer: (p: Permission, d: 'allow' | 'deny') => void; onReview: (p: Permission) => void
 }) {
   const m = v.mission
@@ -194,7 +195,11 @@ export default function Home({ v, connected, live, go, onAnswer, onReview, onNot
         <p className="sr-only">Step {Math.max(1, steps.findIndex(s => s.phase === 'current') + 1)} of {JOURNEY.length}: {stateLabel(m.state)}</p>
       </section>
 
+      {v.autopilot && <AutopilotBar a={v.autopilot} missionId={v.mission.id} onChanged={onChanged} />}
+
       <NeedsYou v={v} onAnswer={onAnswer} onReview={onReview} />
+
+      {v.conversations && <Conversations list={v.conversations} />}
 
       <div className="kpis">
         <Kpi icon="accounts" label="Qualified accounts" value={f.qualified ?? '–'} sub={f.found !== undefined ? `of ${f.found} found` : 'Search not run yet'} onClick={() => go('accounts')} />

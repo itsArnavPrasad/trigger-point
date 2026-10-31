@@ -21,7 +21,13 @@ export interface Draft { id: string; account_name: string | null; recipient_name
 export interface Health { id: string; name: string; purpose: string; state: string; access: string; last_success: string | null; note?: string }
 export interface Harness { id: string; name: string; purpose: string; state: string; wired: boolean }
 export interface Message { seq: number; sender: string; text: string; at: string }
+export interface AutopilotPolicy { enabled: boolean; paused: boolean; credit_cap: number; meetings_wanted: number; daily_send_cap: number; auto_approve_outreach: boolean; availability: { days: number[]; start: string; end: string; timezone: string; minutes: number }; send_window: { days: number[]; start: string; end: string; timezone: string; minutes: number }; max_turns: number; silence_hours: number }
+export interface AutopilotLog { id: number; kind: string; subject: string; tool: string | null; decision: string; reason: string; at: string }
+export interface Autopilot { enabled: boolean; paused: boolean; active: boolean; summary: string; policy: AutopilotPolicy; log: AutopilotLog[]; held: Record<string, string>; outreach_mode: 'demo' | 'live'; demo_inbox: string | null }
+export interface Conversation { id: string; target_id: string; target_name: string; state: 'awaiting_reply' | 'replying' | 'booking' | 'booked' | 'declined' | 'stalled' | 'needs_you'; turns: { who: 'us' | 'them'; text: string; at: string }[]; slots: { id: string; start: string }[]; start: string | null; decline_reason: string | null; decline_quote: string | null; note: string; meeting_id: string | null }
 export interface MissionView {
+  autopilot?: Autopilot
+  conversations?: Conversation[]
   mission: Mission; tasks: Task[]; agents: Agent[]; permissions: Permission[]; approvals: Approval[]
   profile: Profile | null; icp: Icp[]; funnel: Partial<Funnel>; accounts: Account[]; notes: string[]; evidence: Evidence[]
   case: Record<string, any> | null; draft: Draft | null; gate: { passed: boolean; version: string } | null; gate_error: string | null

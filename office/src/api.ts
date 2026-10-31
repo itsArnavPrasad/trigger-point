@@ -30,6 +30,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const get = <T,>(path: string) => call<T>(path)
+export const put = <T,>(path: string, body?: unknown) => call<T>(path, { method: 'PUT', body: JSON.stringify(body ?? {}) })
 export const post = <T,>(path: string, body?: unknown) => call<T>(path, { method: 'POST', body: JSON.stringify(body ?? {}) })
 
 /** The server sends a heartbeat every 10 s, so silence this long means it is gone or frozen. */

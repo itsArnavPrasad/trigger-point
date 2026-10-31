@@ -323,7 +323,7 @@ export default function App() {
   </>
 
   if (mode === 'agent' && view) return <>
-    <AgentMode v={view} connected={connected} live={live} onDashboard={() => setMode('dashboard')} onAnswer={(p, d) => void answer(p, d)} />
+    <AgentMode v={view} onChanged={() => void refresh()} connected={connected} live={live} onDashboard={() => setMode('dashboard')} onAnswer={(p, d) => void answer(p, d)} />
     {modals}
   </>
 
@@ -381,7 +381,7 @@ export default function App() {
                 <p className="office-caption">{view ? SUBTITLE.office : 'Eight agents wait at their desks. They only move when real work starts.'}</p>
               </div>
             ) : page === 'home' ? (
-              view ? <Home v={view} connected={connected} live={live} go={go} onAnswer={(p, d) => void answer(p, d)} onReview={p => openAgent(p.dashboard, p.dashboard === 'mission-director' ? 'overview' : 'work')} onNotes={id => { setMeetingFocus(id); go('meetings') }} onAgent={() => setMode('agent')} onNewMission={() => setCreating(true)} onCancel={cancelMission} />
+              view ? <Home v={view} connected={connected} live={live} go={go} onAnswer={(p, d) => void answer(p, d)} onReview={p => openAgent(p.dashboard, p.dashboard === 'mission-director' ? 'overview' : 'work')} onNotes={id => { setMeetingFocus(id); go('meetings') }} onAgent={() => setMode('agent')} onNewMission={() => setCreating(true)} onCancel={cancelMission} onChanged={() => void refresh()} />
                 : boot ? <div className="welcome"><div className="welcome-copy"><span className="eyebrow">Trigger Point</span><h1>Find out who needs you, and why now.</h1><p>Give it your website and a goal. Agents read your business, pick the accounts with a real reason to talk, prove it with evidence, and draft outreach you approve.</p></div><NewMission onStart={start} mode={boot.mode} /></div>
                 : <p className="loading">Loading…</p>
             ) : (

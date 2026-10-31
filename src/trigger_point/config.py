@@ -86,6 +86,8 @@ class Settings:
     enable_email_send: bool = False
     enable_linkedin_send: bool = False
     test_recipients: tuple[str, ...] = ()  # the only inboxes a test send may reach
+    outreach_mode: Literal["demo", "live"] = "demo"  # demo: every send goes to a test inbox
+    autopilot_default: bool = True  # new missions start on Autopilot
 
     @property
     def run_mode(self) -> RunMode:
@@ -112,9 +114,17 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         raise ConfigError("CRUSTDATA_MODE=live requires CRUSTDATA_API_KEY")
 
     # The MVP prepares and verifies campaigns; it never sends. Refuse rather than ignore.
-    for name in ("ENABLE_EMAIL_SEND", "ENABLE_LINKEDIN_SEND"):
-        if _flag(env, name, False):
-            raise ConfigError(f"{name}=true is not supported: external send is disabled in the MVP")
+    outreach_mode = (env.get("OUTREACH_MODE") or "demo").strip().lower()
+    if outreach_mode not in ("demo", "live"):
+        raise ConfigError(f"OUTREACH_MODE must be 'demo' or 'live', got {outreach_mode!r}")
+    if _flag(env, "ENABLE_LINKEDIN_SEND", False):
+        raise ConfigError("ENABLE_LINKEDIN_SEND=true is not supported: LinkedIn send is disabled")
+    if _flag(env, "ENABLE_EMAIL_SEND", False) and outreach_mode != "live":
+        raise ConfigError(
+            "ENABLE_EMAIL_SEND=true needs OUTREACH_MODE=live: send stays disabled in demo"
+        )
+    if outreach_mode == "live" and not _flag(env, "ENABLE_EMAIL_SEND", False):
+        raise ConfigError("OUTREACH_MODE=live requires ENABLE_EMAIL_SEND=true")
 
     all_replay = set(modes.values()) == {"replay"}
     # Separate default databases keep pure-replay records out of live history.
@@ -146,6 +156,9 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
             and (env.get("CRUSTDATA_FETCH_CONTACTS") or "true").strip().lower()
             not in ("0", "false", "no", "off")
         ),
+        outreach_mode="live" if outreach_mode == "live" else "demo",
+        autopilot_default=_flag(env, "AUTOPILOT_DEFAULT", True),
+        enable_email_send=outreach_mode == "live",
         test_recipients=tuple(
             r.strip().casefold()
             for r in (env.get("TRIGGER_POINT_TEST_RECIPIENTS") or "").split(",")

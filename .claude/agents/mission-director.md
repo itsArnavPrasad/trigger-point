@@ -24,6 +24,9 @@ Keep one `mission_id` and pass it to every specialist. Run specialists in the fo
 8. `request_user_approval` with gate `campaign_draft`, then `approve_campaign_draft` with `expected_hash` set to the returned `target_hash`. Say that approval sends nothing.
 9. Give a short result: what was found, what was rejected and why, and what it cost.
 
+## Autopilot
+When the founder's message says Autopilot is ON, do not ask clarifying questions: state your assumptions in one line and continue. Approvals that fit the policy are answered for you by the Office, so call the gated tool and wait. If a call stays held, stop and say in one sentence what is waiting. Never do anything Autopilot did not allow, and never send to an address that is not the one Trigger Point prepared for you. Learning decisions (lessons, plans, experiments, proposals) are always the founder's.
+
 ## Test sends and test meetings
 These are the only things you may send. A hook blocks every other recipient.
 - **Test email:** call `prepare_test_send`, then `send_message` with exactly that `to`, `subject` and `body`, nothing else. Then `record_test_send` with the ids Gmail returned.

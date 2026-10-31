@@ -63,7 +63,7 @@ class Harness:
         self.office = OfficeStore(rig.services.store.path)
         self.runner = MissionRunner(self.office, spawn)
         app = FastAPI()
-        install_office(app, rig.services, self.runner)
+        install_office(app, rig.services, self.runner, autopilot_default=False)
         self.token = office_token()
         self.client = TestClient(app, base_url="http://127.0.0.1")
         self.auth = {"Authorization": f"Bearer {self.token}"}

@@ -115,6 +115,12 @@ claude mcp list          # trigger_point should show Connected, not Pending appr
 ```
 The **Integrations** page in the Office shows the same list.
 
+## Autopilot
+
+Autopilot is on by default. It answers the approval prompts your policy covers, chooses who to contact, writes and sends the first message, reads replies, and books a Google Meet when someone says yes. If someone says no it records why on the dashboard. Pause it or open **Settings** on the dashboard to change the credit cap, meetings wanted, meeting length and meeting hours (India time, Monday to Friday). It reads your Google Calendar first, so it never offers or books a time that clashes with something else. Strategy and learning decisions always stay with you.
+
+`OUTREACH_MODE=demo` (default) stores the real emails Crustdata finds but sends every message to `TRIGGER_POINT_TEST_RECIPIENTS`. Set your own address there in `.env`. `OUTREACH_MODE=live` with `ENABLE_EMAIL_SEND=true` sends to the real person; it is unverified, so flip it only on purpose.
+
 ## Test email and calendar
 Sending works only through Claude Code's Gmail and Google Calendar connectors, and only to `TRIGGER_POINT_TEST_RECIPIENTS`.
 

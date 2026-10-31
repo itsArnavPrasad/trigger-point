@@ -57,14 +57,32 @@ def allowed_recipients():
     return set()
 
 
+def live_mode():
+    root = Path(os.environ.get("CLAUDE_PROJECT_DIR") or ".")
+    for line in (root / ".env").read_text().splitlines():
+        if line.strip().startswith("OUTREACH_MODE="):
+            return line.split("=", 1)[1].strip().strip("\"'").lower() == "live"
+    return False
+
+
+def office_allows(email):
+    """Live mode only: the Office says whether we prepared a message for this address."""
+    from urllib.parse import quote
+
+    return bool(call(f"/recipient-allowed?email={quote(str(email))}").get("allowed"))
+
+
 def guard_problem(tool, inp):
     """Why this call may not leave the machine, or None. Anything unclear is a refusal."""
-    allowed = allowed_recipients()
-    if not allowed:
+    live = live_mode()
+    allowed = set() if live else allowed_recipients()
+    if not live and not allowed:
         return "TRIGGER_POINT_TEST_RECIPIENTS is not set, so nothing may be sent."
     if tool == GMAIL_SEND:
-        if inp.get("draftId") or inp.get("replyThreadId") or inp.get("replyToMessageId"):
-            return "Test sends must be new messages, with recipients stated."
+        # A reply in a thread is fine; its recipients are still checked below. A saved draft's
+        # recipients are not visible here, so a draft is refused.
+        if inp.get("draftId"):
+            return "Sending a saved draft is blocked: state the recipients in the call."
         to = list(inp.get("to") or [])
         if not to:
             return "No recipient stated."
@@ -72,6 +90,15 @@ def guard_problem(tool, inp):
     else:
         everyone = [a.get("email", "") for a in inp.get("attendees") or []]
         everyone += list(inp.get("attendeeEmails") or [])
+    if live:  # UNVERIFIED: live sending has not been exercised. Any error here is a refusal.
+        if not everyone:
+            return "No recipient stated."
+        outside = [r for r in everyone if not office_allows(r)]
+        return (
+            f"Blocked: {len(outside)} recipient(s) we did not prepare a message for."
+            if outside
+            else None
+        )
     outside = [r for r in everyone if str(r).strip().casefold() not in allowed]
     return f"Blocked: {len(outside)} recipient(s) outside the test inbox." if outside else None
 

@@ -73,3 +73,7 @@ Use a normalized internal interface rather than leaking provider payloads throug
 
 ## Persistence
 SQLite. Move to PostgreSQL when deployed. Unstructured conversation history is never the only source of truth.
+
+## Autopilot
+
+The goal: founders do not arrange meetings. `office/autopilot.py` holds the policy and a pure `decide()` (allow or hold, never deny). `hook_permission` asks it when Claude Code holds a prompt and answers `allow` when the policy covers it, logging each answer in `office_autopilot_log` (`decided_by = autopilot`). `office/autopilot_driver.py` runs from the scheduler tick: it picks the best qualified accounts that have a named buyer, writes and verifies the message, approves it, and schedules it inside the send window. `office/conversations.py` and `workflow/conversation.py` read each reply (the model reads, code verifies the quoted words and the time window), record a no with its reason, offer times, and book a Google Meet through a one-use booking code in the event title. The Director only performs connector calls (Gmail send/read, Calendar create). Anything unclear is held for the founder. Live sending (`OUTREACH_MODE=live`) is built and unverified.

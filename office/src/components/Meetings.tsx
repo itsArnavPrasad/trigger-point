@@ -50,7 +50,7 @@ export function Brief({ v, m, today, bare }: { v: MissionView; m: Meeting; today
           <Tag tone={STATUS_TAG[status][1]}>{STATUS_TAG[status][0]}</Tag>
           <h2>{m.title}</h2>
           <p className="muted">{longDate(m.held_on)}{m.time ? ` · ${m.time}` : ''}{m.attendee ? ` · with ${m.attendee}${m.attendee_role ? `, ${m.attendee_role}` : ''}` : ''}</p>
-          <small>{m.source === 'manual' ? 'Logged by hand' : human(m.source)}</small>
+          <small>{m.source === 'manual' ? 'Logged by hand' : m.source === 'autopilot' ? 'Booked by Autopilot' : human(m.source)}</small>
         </div>
         {(status === 'upcoming' || status === 'today') && <MeetButton link={m.link} />}
       </header>}

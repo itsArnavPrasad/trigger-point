@@ -27,7 +27,12 @@
       "mcp__trigger_point__prepare_test_send",
       "mcp__trigger_point__record_test_send",
       "mcp__trigger_point__record_test_meeting",
-      "mcp__claude_ai_Google_Calendar__suggest_time"
+      "mcp__claude_ai_Google_Calendar__suggest_time",
+      "mcp__trigger_point__prepare_reply",
+      "mcp__trigger_point__record_reply_sent",
+      "mcp__trigger_point__get_booking",
+      "mcp__trigger_point__record_booked_meeting",
+      "mcp__trigger_point__record_busy_times"
     ],
     "ask": [
       "mcp__trigger_point__approve_business_profile",

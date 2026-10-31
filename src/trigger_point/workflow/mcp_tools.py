@@ -255,3 +255,46 @@ def register_feedback_tools(server: MCPServer, fb: FeedbackService) -> None:
     def write_follow_up(mission_id: str, outreach_id: str) -> dict[str, Any]:
         """The next message in a sequence, verified like any other. Stops if they answered."""
         return fb.write_follow_up(mission_id, outreach_id)
+
+
+def register_conversation_tools(server: MCPServer, conv: Any, zone: Any) -> None:
+    """Moving a conversation along. What to say and when to meet is decided in code, not here:
+    these tools hand the Director exact values and record what happened."""
+
+    @server.tool(annotations=READ_ONLY)
+    def prepare_reply(mission_id: str, target_id: str) -> dict[str, Any]:
+        """The exact reply to send: to, subject, body, replyThreadId. Send it with Gmail
+        send_message exactly as given, then call record_reply_sent."""
+        return dict(conv.prepare_reply(mission_id, target_id))
+
+    @server.tool(annotations=WRITES)
+    def record_reply_sent(mission_id: str, target_id: str, message_id: str) -> dict[str, Any]:
+        """Record the Gmail message id of the reply you just sent."""
+        return dict(conv.record_reply_sent(mission_id, target_id, message_id))
+
+    @server.tool(annotations=READ_ONLY)
+    def get_booking(mission_id: str, target_id: str) -> dict[str, Any]:
+        """The meeting to put on the calendar: title (starts with a code), attendee, start, end.
+        Create exactly that Google Calendar event with a Google Meet link."""
+        minutes, tz = zone(mission_id)
+        return dict(conv.get_booking(mission_id, target_id, minutes, tz))
+
+    @server.tool(annotations=WRITES)
+    def record_booked_meeting(
+        mission_id: str, target_id: str, token: str, event_id: str, meet_link: str
+    ) -> dict[str, Any]:
+        """After the calendar event exists: its id and Meet link. Adds the meeting to the
+        dashboard with prep notes and queues the confirmation reply."""
+        minutes, tz = zone(mission_id)
+        return dict(
+            conv.record_booked_meeting(
+                mission_id, target_id, token, event_id, meet_link, minutes, tz
+            )
+        )
+
+    @server.tool(annotations=WRITES)
+    def record_busy_times(mission_id: str, busy: list[dict[str, Any]]) -> dict[str, Any]:
+        """After reading my Google Calendar for the next 14 days: every event as {start, end},
+        ISO 8601 with a UTC offset. Include all-day, tentative and other people's invites I accepted.
+        Trigger Point never offers or books a time that overlaps these."""
+        return dict(conv.record_busy(mission_id, busy))

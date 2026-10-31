@@ -7,6 +7,7 @@ import { post } from '../api'
 import { meetingStatus, modeLabel, permissionLabel } from '../logic'
 import type { MissionView, Permission } from '../types'
 import Icon from './Icon'
+import { AutopilotBar, Conversations } from './Autopilot'
 import { Brief } from './Meetings'
 import { MeetButton } from './ui'
 
@@ -55,8 +56,8 @@ export function Composer({ inputRef, text, setText, send, sending, error, placeh
   )
 }
 
-export default function AgentMode({ v, connected, live, onDashboard, onAnswer }: {
-  v: MissionView; connected: boolean; live: string; onDashboard: () => void
+export default function AgentMode({ v, connected, live, onDashboard, onAnswer, onChanged }: {
+  v: MissionView; onChanged: () => void; connected: boolean; live: string; onDashboard: () => void
   onAnswer: (p: Permission, d: 'allow' | 'deny') => void
 }) {
   const today = new Date().toISOString().slice(0, 10)
@@ -136,6 +137,10 @@ export default function AgentMode({ v, connected, live, onDashboard, onAnswer }:
               {v.permissions.length ? ` · ${v.permissions.length} waiting on you` : ''}
             </p>
           </section>
+
+          {v.autopilot && <AutopilotBar a={v.autopilot} missionId={v.mission.id} onChanged={onChanged} compact />}
+
+          {v.conversations && <Conversations list={v.conversations} />}
 
           {v.permissions.map(p => (
             <section key={p.id} className="agent-card needs">

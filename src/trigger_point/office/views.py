@@ -466,3 +466,44 @@ def mission_view(services: Services, office: OfficeStore, mission_id: str) -> di
         "run": run_row,
         "events": events[-250:],
     }
+
+
+def autopilot_summary(policy: Any) -> str:
+    if not policy.enabled:
+        return "Off"
+    if policy.paused:
+        return "Paused"
+    a = policy.availability
+    days = "Mon-Fri" if a.days == [0, 1, 2, 3, 4] else f"{len(a.days)} days a week"
+    return (
+        f"On · up to {policy.credit_cap} credits · {policy.meetings_wanted} meetings · "
+        f"{days} {a.start}-{a.end} {a.timezone.rsplit('/', 1)[-1]}"
+    )
+
+
+def autopilot_payload(
+    autopilot: Any, office: OfficeStore, services: Services, mission_id: str
+) -> dict[str, Any]:
+    """The policy, what Autopilot did, and why it held what it held. Real rows only."""
+    policy = autopilot.policy_for(mission_id)
+    s = services.settings
+    log = office.autopilot_log(mission_id, 30) if mission_id != "*" else []
+    held = {
+        e["subject"]: e["reason"]
+        for e in reversed(log)
+        if e["kind"] == "permission" and e["decision"] == "hold"
+    }
+    pending = {
+        p["id"] for p in office.pending_permissions(None if mission_id == "*" else mission_id)
+    }
+    return {
+        "enabled": policy.enabled,
+        "paused": policy.paused,
+        "active": policy.active,
+        "summary": autopilot_summary(policy),
+        "policy": policy.model_dump(),
+        "log": log[:12],
+        "held": {pid: reason for pid, reason in held.items() if pid in pending},
+        "outreach_mode": s.outreach_mode,
+        "demo_inbox": s.test_recipients[0] if s.test_recipients else None,
+    }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentLabel, connState, connectionRows, connectionsReady, contactStatus, elapsed, flowSteps, gmailCompose, initials, journey, liveness, meetingStatus, modeLabel, percent, permissionLabel, profileLink, rankNote, safeHref, scoreLine, signalLabel, splitMeetings, telHref, tokenFromHash } from './logic'
+import { autopilotLine, conversationLabel, daysLabel, lastWords, agentLabel, connState, connectionRows, connectionsReady, contactStatus, elapsed, flowSteps, gmailCompose, initials, journey, liveness, meetingStatus, modeLabel, percent, permissionLabel, profileLink, rankNote, safeHref, scoreLine, signalLabel, splitMeetings, telHref, tokenFromHash } from './logic'
 import type { MissionView } from './types'
 
 const view = (over: Partial<MissionView> & { state?: string } = {}) => ({
@@ -201,4 +201,29 @@ describe('signalLabel', () => {
   it('falls back to the type itself, never to a blank', () => {
     expect(signalLabel('some_new_signal')).toBe('some new signal')
   })
+})
+
+describe('autopilotLine', () => {
+  it('says what was done, and why something was held', () => {
+    expect(autopilotLine({ kind: 'permission', decision: 'allow', reason: 'ok', tool: 'mcp__claude_ai_Gmail__send_message' })).toBe('Sent an email: done for you')
+    expect(autopilotLine({ kind: 'permission', decision: 'hold', reason: 'Would pass the cap', tool: 'discover_accounts' })).toBe('Discover accounts: waiting for you. Would pass the cap')
+    expect(daysLabel([0, 1, 2, 3, 4])).toBe('Mon–Fri')
+    expect(daysLabel([1, 3])).toBe('Tue, Thu')
+  })
+})
+
+describe('conversations', () => {
+  it('labels states and shortens the last words from them', () => {
+    expect(conversationLabel('declined')).toEqual(['Said no', 'bad'])
+    expect(conversationLabel('weird_state')[0]).toBe('Weird state')
+    const turns = [{ who: 'us', text: 'Hello' }, { who: 'them', text: 'Not   interested,\nthanks' }, { who: 'us', text: 'ok' }]
+    expect(lastWords(turns)).toBe('Not interested, thanks')
+    expect(lastWords([{ who: 'them', text: 'x'.repeat(200) }], 10)).toHaveLength(10)
+    expect(lastWords([])).toBe('')
+  })
+})
+
+it('shows the real reason for steps that are not permissions', () => {
+  expect(autopilotLine({ kind: 'conversation', decision: 'allow', reason: 'Booked Ledgerloop', tool: null })).toBe('Booked Ledgerloop')
+  expect(autopilotLine({ kind: 'write', decision: 'hold', reason: 'Checks failed', tool: null })).toBe('Checks failed. Waiting for you')
 })

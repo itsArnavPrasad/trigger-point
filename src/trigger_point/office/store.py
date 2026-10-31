@@ -37,6 +37,14 @@ CREATE TABLE IF NOT EXISTS office_costs (
     mission_id TEXT NOT NULL, source TEXT NOT NULL, amount REAL NOT NULL, unit TEXT NOT NULL,
     basis TEXT NOT NULL, ref TEXT UNIQUE, at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS office_autopilot (
+    mission_id TEXT PRIMARY KEY, body TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS office_autopilot_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, mission_id TEXT NOT NULL, kind TEXT NOT NULL,
+    subject TEXT NOT NULL DEFAULT '', tool TEXT, decision TEXT NOT NULL, reason TEXT NOT NULL,
+    at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS office_changes (
     seq INTEGER PRIMARY KEY AUTOINCREMENT, mission_id TEXT, at TEXT NOT NULL
 );
@@ -52,6 +60,10 @@ class OfficeStore:
         self._path = str(path)
         with closing(self._conn()) as c:
             c.executescript(SCHEMA)
+            # No migration framework: add the column to databases created before Autopilot.
+            cols = {r["name"] for r in c.execute("PRAGMA table_info(office_permissions)")}
+            if "decided_by" not in cols:
+                c.execute("ALTER TABLE office_permissions ADD COLUMN decided_by TEXT")
 
     def _conn(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self._path, timeout=30, isolation_level=None)
@@ -162,14 +174,16 @@ class OfficeStore:
         )
         return [self._permission(r) for r in rows]
 
-    def decide_permission(self, pid: str, decision: str, message: str | None) -> bool:
+    def decide_permission(
+        self, pid: str, decision: str, message: str | None, decided_by: str = "human"
+    ) -> bool:
         """First answer wins. A dialog cannot be answered twice."""
         current = self.permission(pid)
         with self._write(current["mission_id"] if current else None) as c:
             cur = c.execute(
-                "UPDATE office_permissions SET status = ?, message = ?, decided_at = ? "
-                "WHERE id = ? AND status = 'pending'",
-                (decision, message, _now(), pid),
+                "UPDATE office_permissions SET status = ?, message = ?, decided_at = ?, "
+                "decided_by = ? WHERE id = ? AND status = 'pending'",
+                (decision, message, _now(), decided_by, pid),
             )
             return cur.rowcount == 1
 
@@ -217,4 +231,54 @@ class OfficeStore:
     def costs(self, mission_id: str) -> list[dict[str, Any]]:
         return self._rows(
             "SELECT * FROM office_costs WHERE mission_id = ? ORDER BY seq", mission_id
+        )
+
+    # autopilot -------------------------------------------------------------------------------
+
+    def autopilot_body(self, mission_id: str) -> dict[str, Any] | None:
+        rows = self._rows("SELECT body FROM office_autopilot WHERE mission_id = ?", mission_id)
+        return dict(json.loads(rows[0]["body"])) if rows else None
+
+    def set_autopilot_body(self, mission_id: str, body: dict[str, Any]) -> None:
+        with self._write(None if mission_id == "*" else mission_id) as c:
+            c.execute(
+                "INSERT INTO office_autopilot (mission_id, body, updated_at) VALUES (?, ?, ?) "
+                "ON CONFLICT(mission_id) DO UPDATE SET body = excluded.body, "
+                "updated_at = excluded.updated_at",
+                (mission_id, json.dumps(body), _now()),
+            )
+
+    def log_autopilot(
+        self,
+        mission_id: str,
+        kind: str,
+        decision: str,
+        reason: str,
+        subject: str = "",
+        tool: str | None = None,
+    ) -> None:
+        with self._write(mission_id) as c:
+            c.execute(
+                "INSERT INTO office_autopilot_log "
+                "(mission_id, kind, subject, tool, decision, reason, at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (mission_id, kind, subject, tool, decision, reason, _now()),
+            )
+
+    def autopilot_log(self, mission_id: str, limit: int = 30) -> list[dict[str, Any]]:
+        return self._rows(
+            "SELECT * FROM office_autopilot_log WHERE mission_id = ? ORDER BY id DESC LIMIT ?",
+            mission_id,
+            limit,
+        )
+
+    def autopilot_logged(self, mission_id: str, kind: str, subject: str) -> bool:
+        return bool(
+            self._rows(
+                "SELECT 1 FROM office_autopilot_log WHERE mission_id = ? AND kind = ? "
+                "AND subject = ? LIMIT 1",
+                mission_id,
+                kind,
+                subject,
+            )
         )

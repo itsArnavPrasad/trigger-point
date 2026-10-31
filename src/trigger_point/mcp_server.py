@@ -21,10 +21,14 @@ from trigger_point.config import load_settings
 from trigger_point.context.service import ContextNotFound
 from trigger_point.drafts.service import DraftNotFound
 from trigger_point.models.context import CLAIM_LIST_FIELDS, BusinessContext
+from trigger_point.office.autopilot import AutopilotService
+from trigger_point.office.conversations import Conversations
+from trigger_point.office.store import OfficeStore
 from trigger_point.office.views import integration_health
 from trigger_point.research.service import ResearchNotFound
 from trigger_point.workflow.mcp_tools import (
     WORKFLOW_APPROVAL_TOOLS,
+    register_conversation_tools,
     register_feedback_tools,
     register_workflow_tools,
 )
@@ -151,6 +155,16 @@ def build_server(services: Services) -> MCPServer:
 
     register_workflow_tools(server, services.workflow)
     register_feedback_tools(server, services.feedback)
+    office = OfficeStore(services.store.path)
+    autopilot = AutopilotService(office, services.settings.autopilot_default)
+
+    def window(mission_id: str) -> tuple[int, str]:
+        a = autopilot.policy_for(mission_id).availability
+        return a.minutes, a.timezone
+
+    register_conversation_tools(
+        server, Conversations(services.workflow, services.feedback, office), window
+    )
     return server
 
 

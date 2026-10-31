@@ -12,6 +12,8 @@ import re
 import secrets
 import time
 from collections.abc import Awaitable, Callable, Iterator
+from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -23,10 +25,22 @@ from pydantic import BaseModel, Field
 
 from trigger_point.api.app import Services
 from trigger_point.office import scheduler
+from trigger_point.office.autopilot import (
+    CALENDAR_CREATE,
+    GLOBAL,
+    GMAIL_SEND,
+    AutopilotService,
+    Context,
+    credits_total,
+    decide,
+)
+from trigger_point.office.autopilot_driver import drive
 from trigger_point.office.connectors import ConnectorStatus
+from trigger_point.office.conversations import Conversations
 from trigger_point.office.runner import PROJECT_ROOT, MissionRunner
 from trigger_point.office.store import OfficeStore
 from trigger_point.office.views import (
+    autopilot_payload,
     harness_connectors,
     integration_health,
     mission_summary,
@@ -167,15 +181,34 @@ class HookPermission(BaseModel):
     role: str | None = None
 
 
-def _first_prompt(m: NewMission) -> str:
+AUTOPILOT_NOTE = (
+    "Autopilot is ON. Run every step without asking the founder questions: state your assumptions "
+    "and continue. Approvals inside the policy are answered for you; if one is held, stop and say "
+    "what is waiting."
+)
+
+
+def _first_prompt(m: NewMission, autopilot_on: bool = False) -> str:
     """User text is passed as labelled data, and the tool validates it."""
+    note = f"\n{AUTOPILOT_NOTE}" if autopilot_on else ""
     return (
         "Start this Trigger Point mission now. Call create_mission with exactly these values.\n"
         + json.dumps(m.model_dump(), indent=2)
+        + note
     )
 
 
-def office_router(services: Services, office: OfficeStore, runner: MissionRunner) -> APIRouter:  # noqa: C901
+class AutopilotEdit(BaseModel):
+    changes: dict[str, Any]
+
+
+def office_router(  # noqa: C901
+    services: Services,
+    office: OfficeStore,
+    runner: MissionRunner,
+    autopilot: AutopilotService,
+    convs: Conversations,
+) -> APIRouter:
     token = office_token()
     connectors = ConnectorStatus()
 
@@ -221,7 +254,7 @@ def office_router(services: Services, office: OfficeStore, runner: MissionRunner
         # create_mission with the same website and goal, which finds it and reads the site.
         m = engine.create_mission(body.website_url, body.goal, s.run_mode, dict(s.provider_modes))
         office.add_message(m.id, "user", f"{body.website_url}: {body.goal}")
-        runner.send(m.id, _first_prompt(body))
+        runner.send(m.id, _first_prompt(body, autopilot.policy_for(m.id).active))
         return {"mission_id": m.id}
 
     @r.get("/missions/{mission_id}")
@@ -229,6 +262,8 @@ def office_router(services: Services, office: OfficeStore, runner: MissionRunner
         known(mission_id)
         return {
             **mission_view(services, office, mission_id),
+            "autopilot": autopilot_view(mission_id),
+            "conversations": convs.all(mission_id),
             "running": runner.is_running(mission_id),
         }
 
@@ -488,6 +523,114 @@ def office_router(services: Services, office: OfficeStore, runner: MissionRunner
         office.add_activity(**{**body.model_dump(), "mission_id": mission})
         return {"ok": True}
 
+    def autopilot_view(mission_id: str) -> dict[str, Any]:
+        return autopilot_payload(autopilot, office, services, mission_id)
+
+    def save_autopilot(mission_id: str, changes: dict[str, Any]) -> dict[str, Any]:
+        try:
+            autopilot.save(mission_id, changes)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        sweep(mission_id)
+        turned_on = changes.get("enabled") is True or changes.get("paused") is False
+        if turned_on and mission_id != GLOBAL and autopilot.policy_for(mission_id).active:
+            runner.send(mission_id, AUTOPILOT_NOTE + " Continue with the next step now.")
+        office.touch(None if mission_id == GLOBAL else mission_id)
+        return autopilot_view(mission_id)
+
+    def sweep(mission_id: str) -> None:
+        """Turning Autopilot on also answers what is already waiting."""
+        for p in office.pending_permissions(None if mission_id == GLOBAL else mission_id):
+            auto_answer(
+                p["id"],
+                p["mission_id"],
+                HookPermission(
+                    tool=p["tool"],
+                    tool_input=p["input"],
+                    mission_id=p["mission_id"],
+                    session_id=p["session_id"],
+                    role=p["role"],
+                ),
+            )
+
+    def allowed_addresses(mission: str) -> frozenset[str]:
+        """Demo: the test inbox. Live: only people we wrote to, from approved messages."""
+        if services.settings.outreach_mode == "demo":
+            return frozenset(services.workflow.test_recipients)
+        wf = services.workflow
+        wrote = {
+            o["target_id"] for o in wf.outreach(mission) if o["status"] in ("approved", "verified")
+        }
+        return frozenset(
+            str(t["buyer_email"]).casefold()
+            for t in wf.targets(mission)
+            if t.get("buyer_email") and t["id"] in wrote
+        )
+
+    @r.get("/hook/recipient-allowed")
+    def recipient_allowed(email: str) -> dict[str, bool]:
+        """Live mode's send guard asks this. Only an address we prepared a message for passes."""
+        want = email.strip().casefold()
+        for m in services.workflow.engine.missions(limit=50):
+            if want in allowed_addresses(m.id):
+                return {"allowed": True}
+        return {"allowed": False}
+
+    def autopilot_context(mission: str, body: HookPermission) -> Context:
+        known_mission = True
+        try:
+            services.workflow.engine.mission(mission)
+        except MissionNotFound:
+            known_mission = False
+        spent = Decimal(0)
+        m = services.workflow.engine.mission(mission) if known_mission else None
+        for run in (
+            services.store.get_discovery(m.discovery_id) if m and m.discovery_id else None,
+            services.store.get_research(m.research_id) if m and m.research_id else None,
+        ):
+            if run is not None:
+                spent += credits_total(run.credits)
+        projected = Decimal(str(services.settings.crustdata_run_credit_budget))
+        today = datetime.now(UTC).date().isoformat()
+        log = office.autopilot_log(mission, 500)
+        booking = (
+            convs.booking_for(mission, body.tool_input) if body.tool == CALENDAR_CREATE else None
+        )
+        invitee = convs.recipient(mission, booking["target_id"]) if booking else None
+        return Context(
+            booking_attendees=frozenset({invitee.casefold()}) if invitee else frozenset(),
+            known_mission=known_mission,
+            session_mission=mission,
+            credits_spent=spent,
+            projected_credits=projected,
+            allowed_recipients=allowed_addresses(mission),
+            sends_today=sum(
+                1
+                for e in log
+                if e["tool"] == GMAIL_SEND and e["decision"] == "allow" and e["at"][:10] == today
+            ),
+            meetings_booked=sum(
+                1 for x in services.workflow.meetings(mission) if x.get("source") == "autopilot"
+            ),
+        )
+
+    def auto_answer(pid: str, mission: str | None, body: HookPermission) -> None:
+        """Answers a held prompt from the standing policy. Any failure leaves it pending."""
+        if not mission or not MISSION_ID.fullmatch(mission):
+            return
+        try:
+            policy = autopilot.policy_for(mission)
+            if not policy.active:
+                return
+            verdict = decide(policy, autopilot_context(mission, body), body.tool, body.tool_input)
+            office.log_autopilot(
+                mission, "permission", verdict.verdict, verdict.reason, subject=pid, tool=body.tool
+            )
+            if verdict.allowed:
+                office.decide_permission(pid, "allow", "Autopilot", "autopilot")
+        except Exception:  # noqa: BLE001 - fail to "held": the human still sees the prompt
+            return
+
     @r.post("/hook/permission", status_code=201)
     def hook_permission(body: HookPermission) -> dict[str, str]:
         mission = body.mission_id
@@ -496,7 +639,33 @@ def office_router(services: Services, office: OfficeStore, runner: MissionRunner
         pid = office.open_permission(
             mission, body.session_id, body.role, body.tool, body.tool_input
         )
+        auto_answer(pid, mission, body)
         return {"id": pid}
+
+    @r.get("/autopilot")
+    def get_global_autopilot() -> dict[str, Any]:
+        return autopilot_view(GLOBAL)
+
+    @r.put("/autopilot")
+    def put_global_autopilot(body: AutopilotEdit) -> dict[str, Any]:
+        return save_autopilot(GLOBAL, body.changes)
+
+    @r.get("/missions/{mission_id}/autopilot")
+    def get_autopilot(mission_id: str) -> dict[str, Any]:
+        known(mission_id)
+        return autopilot_view(mission_id)
+
+    @r.put("/missions/{mission_id}/autopilot")
+    def put_autopilot(mission_id: str, body: AutopilotEdit) -> dict[str, Any]:
+        known(mission_id)
+        return save_autopilot(mission_id, body.changes)
+
+    @r.post("/missions/{mission_id}/autopilot/pause")
+    def pause_autopilot(mission_id: str) -> dict[str, Any]:
+        known(mission_id)
+        out = save_autopilot(mission_id, {"paused": True})
+        office.log_autopilot(mission_id, "control", "hold", "Paused by you")
+        return out
 
     @r.get("/hook/permission/{permission_id}")
     def hook_poll(permission_id: str) -> dict[str, Any]:
@@ -531,16 +700,27 @@ def office_router(services: Services, office: OfficeStore, runner: MissionRunner
     return r
 
 
-def install_office(app: FastAPI, services: Services, runner: MissionRunner | None = None) -> None:
+def install_office(
+    app: FastAPI,
+    services: Services,
+    runner: MissionRunner | None = None,
+    autopilot_default: bool | None = None,
+) -> None:
     """Adds the API, the guards and the built UI."""
     office = OfficeStore(services.store.path)
+    on = services.settings.autopilot_default if autopilot_default is None else autopilot_default
+    autopilot = AutopilotService(office, on)
+    convs = Conversations(services.workflow, services.feedback, office)
+    app.state.autopilot = autopilot
     active = runner or MissionRunner(office)
     token = office_token()
     app.state.office = office
     app.state.runner = active
-    app.include_router(office_router(services, office, active))
+    app.include_router(office_router(services, office, active, autopilot, convs))
     if runner is None:
-        scheduler.start(services.feedback, active)
+        scheduler.start(
+            services.feedback, active, lambda: drive(services, office, autopilot, convs, active)
+        )
 
     @app.middleware("http")
     async def guard(

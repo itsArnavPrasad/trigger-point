@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 from typing import Any
+from urllib.parse import unquote
 
 import pytest
 
@@ -50,7 +51,9 @@ def decide(
         (GMAIL, {"to": []}, "deny"),
         (GMAIL, {}, "deny"),
         (GMAIL, {"draftId": "d1"}, "deny"),
-        (GMAIL, {"to": [OK], "replyThreadId": "t1"}, "deny"),
+        (GMAIL, {"to": [OK], "replyThreadId": "t1"}, "pass"),
+        (GMAIL, {"to": ["a@b.example"], "replyThreadId": "t1"}, "deny"),
+        (GMAIL, {"replyThreadId": "t1"}, "deny"),
         (CAL, {"summary": "x", "attendees": [{"email": OK}]}, "pass"),
         (CAL, {"summary": "x"}, "pass"),
         (CAL, {"summary": "x", "attendees": [{"email": "a@b.example"}]}, "deny"),
@@ -103,3 +106,24 @@ def test_a_gmail_send_is_held_for_a_person(hook: ModuleType, capsys: Any, monkey
     assert (
         json.loads(capsys.readouterr().out)["hookSpecificOutput"]["decision"]["behavior"] == "deny"
     )
+
+
+def test_live_mode_asks_the_office_and_fails_closed(
+    tmp_path: Path, hook: ModuleType, capsys: Any, monkeypatch: Any
+) -> None:
+    (tmp_path / ".env").write_text("OUTREACH_MODE=live\n")
+    prepared = "person@school.example"
+    monkeypatch.setattr(hook, "call", lambda p, *a, **k: {"allowed": prepared in unquote(p)})
+    assert decide(hook, GMAIL, {"to": [prepared]}, capsys, monkeypatch) == "pass"
+    assert decide(hook, GMAIL, {"to": ["other@school.example"]}, capsys, monkeypatch) == "deny"
+    assert (
+        decide(hook, GMAIL, {"to": [prepared], "cc": ["x@y.example"]}, capsys, monkeypatch)
+        == "deny"
+    )
+    assert decide(hook, GMAIL, {"draftId": "d"}, capsys, monkeypatch) == "deny"
+
+    def down(*a: Any, **k: Any) -> None:
+        raise OSError("office is down")
+
+    monkeypatch.setattr(hook, "call", down)
+    assert decide(hook, GMAIL, {"to": [prepared]}, capsys, monkeypatch) == "deny"
