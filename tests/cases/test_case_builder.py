@@ -32,9 +32,9 @@ def approved_context():  # type: ignore[no-untyped-def]
     return ground_context(ctx, PAGES).model_copy(update={"status": "approved"})
 
 
-def research(people=True, postings=True, **company_over):  # type: ignore[no-untyped-def]
+def research(people=True, postings=True, signal_types=None, **company_over):  # type: ignore[no-untyped-def]
     c = company(**company_over)
-    p = plan()
+    p = plan(signal_types=signal_types) if signal_types is not None else plan()
     sigs, evs = signals_from_company(c, p, TODAY)
     ps = signals_from_postings([posting()] if postings else [], p, TODAY)
     sigs += ps.signals.get(1001, [])
@@ -127,6 +127,18 @@ def test_expired_signals_are_listed_as_gaps_not_hooks() -> None:
     assert any("expired" in g for g in case.coverage_gaps)
     hook_signals = [s for s in ar.signals if set(s.evidence_ids) & set(case.hook_evidence_ids)]
     assert all(s.status == "active" for s in hook_signals)
+
+
+def test_a_funding_round_that_was_actually_found_is_not_a_gap() -> None:
+    ar, p = research(funding_last_fundraise_date="2026-10-24", signal_types=["recent_funding"])
+    case = build_case(ar, p, approved_context(), "ctx1", "r1", TODAY, NOW, "replay")
+    assert not any("recent_funding" in g for g in case.coverage_gaps)
+
+
+def test_wanting_funding_but_finding_none_is_still_a_gap() -> None:
+    ar, p = research(signal_types=["recent_funding"])
+    case = build_case(ar, p, approved_context(), "ctx1", "r1", TODAY, NOW, "replay")
+    assert any("recent_funding" in g for g in case.coverage_gaps)
 
 
 def test_seller_evidence_ids_are_content_based_not_run_based() -> None:

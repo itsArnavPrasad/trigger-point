@@ -10,7 +10,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from trigger_point.mission.models import DEFAULT_FRESHNESS_DAYS, GTMPlan
+from trigger_point.mission.models import DEFAULT_FRESHNESS_DAYS, GTMPlan, SignalType
 from trigger_point.models.evidence import Evidence, evidence_id
 from trigger_point.providers.crustdata.models import Company, JobPosting
 
@@ -41,6 +41,8 @@ FUNCTION_JOB_KEYWORDS: dict[str, tuple[str, ...]] = {
 }
 GROWTH_STRENGTH = ((20.0, 1.0), (10.0, 0.7), (5.0, 0.4))  # 6-month headcount growth %
 OPENINGS_STRENGTH = ((20, 0.8), (10, 0.6), (3, 0.4))  # open roles
+FUNDING_STRENGTH = 0.9  # a real, dated event; stronger than an "as of" metric refresh
+POSTING_SIGNALS: tuple[SignalType, ...] = ("support_team_growth", "active_hiring")
 FUNCTION_POSTING_STRENGTH = 0.6
 EXCERPT_RADIUS = 80
 
@@ -152,6 +154,47 @@ def signals_from_company(
                 f"{c.name or 'The company'} had {n} open roles ({as_of_text}, Crustdata).",
                 "hiring.openings_count",
             )
+    if "recent_funding" in plan.signal_types and c.funding_last_fundraise_date:
+        event_on = _provider_date(c.funding_last_fundraise_date)
+        if event_on is not None:
+            window = _window(plan, "recent_funding")
+            status, age = _status(event_on, window, today)
+            amount = f"${c.funding_total_usd:,.0f} " if c.funding_total_usd is not None else ""
+            round_type = f"{c.funding_last_round_type} " if c.funding_last_round_type else ""
+            claim = (
+                f"{c.name or 'The company'} raised a {round_type}round "
+                f"{amount}on {event_on.isoformat()} (Crustdata)."
+            )
+            field_path = "funding.last_fundraise_date"
+            ev = Evidence(
+                id=evidence_id("account", c.provider_company_id, field_path, event_on),
+                entity_type="account",
+                entity_id=str(c.provider_company_id),
+                claim=claim,
+                source_kind="provider_field",
+                publisher="Crustdata",
+                provider_ref=f"crustdata:{c.source_endpoint}:{field_path}",
+                event_on=event_on,
+                retrieved_at=c.retrieved_at,
+                excerpt=f"{field_path} = {c.funding_last_fundraise_date}",
+            )
+            evidence.append(ev)
+            signals.append(
+                Signal(
+                    id=evidence_id("signal", c.provider_company_id, "recent_funding", event_on),
+                    account_id=c.provider_company_id,
+                    type="recent_funding",
+                    description=claim,
+                    value=c.funding_total_usd,
+                    event_on=event_on,
+                    as_of=None,
+                    age_days=age,
+                    window_days=window,
+                    status=status,
+                    strength=FUNDING_STRENGTH,
+                    evidence_ids=[ev.id],
+                )
+            )
     return signals, evidence
 
 
@@ -181,12 +224,22 @@ def _excerpt(text: str, start: int, end: int) -> str:
     return ("…" if a else "") + text[a:b].strip() + ("…" if b < len(text) else "")
 
 
+def posting_signal(plan: GTMPlan) -> SignalType | None:
+    """Which signal a dated posting into the target team evidences on this plan."""
+    return next((t for t in POSTING_SIGNALS if t in plan.signal_types), None)
+
+
+def wants_postings(plan: GTMPlan) -> bool:
+    return posting_signal(plan) is not None or bool(plan.tech_keywords)
+
+
 def signals_from_postings(postings: list[JobPosting], plan: GTMPlan, today: date) -> PostingSignals:
     """Each posting into a persona's function is a dated why-now signal; tech keywords named in
     a posting are fit evidence (the company uses the tool), not timing."""
     out = PostingSignals()
     keywords = persona_keywords(plan)
-    window = _window(plan, "support_team_growth")
+    signal_type = posting_signal(plan)
+    window = _window(plan, signal_type) if signal_type else 0
     seen: set[tuple[int, object]] = set()
     tech_seen: set[tuple[int, str]] = set()
     for p in postings:
@@ -213,17 +266,14 @@ def signals_from_postings(postings: list[JobPosting], plan: GTMPlan, today: date
             retrieved_at=p.retrieved_at,
             excerpt=p.title,
         )
-        relevant = "support_team_growth" in plan.signal_types and _matches_title(p.title, keywords)
-        if relevant:
+        if signal_type and _matches_title(p.title, keywords):
             out.evidence.append(ev)
             status, age = _status(p.posted_on, window, today)
             out.signals[p.company_id].append(
                 Signal(
-                    id=evidence_id(
-                        "signal", p.company_id, "support_team_growth", p.provider_job_id
-                    ),
+                    id=evidence_id("signal", p.company_id, signal_type, p.provider_job_id),
                     account_id=p.company_id,
-                    type="support_team_growth",
+                    type=signal_type,
                     description=f"Hiring into the target team: {p.title} ({dates}).",
                     value=None,
                     event_on=p.posted_on,

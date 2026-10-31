@@ -35,7 +35,12 @@ from trigger_point.research.people import (
     match_people,
 )
 from trigger_point.research.scoring import PeopleOutcome, ScoreBreakdown, rank, score_account
-from trigger_point.research.signals import Signal, signals_from_company, signals_from_postings
+from trigger_point.research.signals import (
+    Signal,
+    signals_from_company,
+    signals_from_postings,
+    wants_postings,
+)
 from trigger_point.store.db import Store
 
 PEOPLE_TOP_N = 5
@@ -243,15 +248,10 @@ class ResearchService:
             return
         ids = [a.provider_company_id for a in accounts]
         today = run.reference_date
-        if "recent_funding" in plan.signal_types:
-            run.notes.append(
-                "recent_funding not collected: funding fields are a paid enrich step "
-                "not run in this slice"
-            )
 
         postings: list[JobPosting] = []
         jobs_collected = False
-        if "support_team_growth" in plan.signal_types or plan.tech_keywords:
+        if wants_postings(plan):
             limit = _affordable(budget, JOB_CREDITS_PER_RESULT, JOBS_PER_ACCOUNT * len(ids))
             if limit < 1:
                 run.notes.append("job search skipped: credit budget exhausted")

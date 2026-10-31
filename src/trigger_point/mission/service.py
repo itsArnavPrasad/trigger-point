@@ -67,7 +67,7 @@ class MissionService:
         self._contexts, self._llm, self._store = contexts, llm, store
         self._budget, self._clock = credit_budget, clock
 
-    def compile(self, context_id: str, initiated_by: str = "ui") -> Mission:
+    def compile(self, context_id: str, initiated_by: str = "ui", lessons: str = "") -> Mission:
         ctx = self._contexts.get(context_id)
         if ctx.status != "approved":
             raise ContextNotApproved(f"context {context_id} v{ctx.version} is {ctx.status}")
@@ -75,7 +75,7 @@ class MissionService:
             task="mission_compile",
             replay_key=ctx.domain,
             system=MISSION_SYSTEM_PROMPT,
-            user=build_mission_message(ctx),
+            user=build_mission_message(ctx) + lessons,
             schema=MissionDraft,
             max_tokens=8000,
         )

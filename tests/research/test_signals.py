@@ -1,7 +1,11 @@
 from datetime import date
 
 from tests.research.factories import TODAY, company, plan, posting
-from trigger_point.research.signals import signals_from_company, signals_from_postings
+from trigger_point.research.signals import (
+    signals_from_company,
+    signals_from_postings,
+    wants_postings,
+)
 
 
 def by_type(signals: list) -> dict:  # type: ignore[type-arg]
@@ -94,3 +98,44 @@ def test_evidence_ids_are_stable() -> None:
     a = signals_from_postings([posting()], plan(), TODAY).evidence
     b = signals_from_postings([posting()], plan(), TODAY).evidence
     assert [e.id for e in a] == [e.id for e in b]
+
+
+def test_a_funding_round_is_a_real_dated_event_not_a_metric_refresh() -> None:
+    c = company(
+        funding_last_fundraise_date="2026-10-24",
+        funding_last_round_type="series_a",
+        funding_total_usd=12_000_000.0,
+    )
+    sigs, evidence = signals_from_company(c, plan(signal_types=["recent_funding"]), TODAY)
+    funding = by_type(sigs)["recent_funding"]
+    assert funding.event_on == date(2026, 10, 24)
+    assert funding.status == "active" and funding.age_days == 7
+    assert "series_a" in funding.description and "$12,000,000" in funding.description
+    [ev] = [e for e in evidence if e.id in funding.evidence_ids]
+    assert ev.provider_ref == "crustdata:/company/search:funding.last_fundraise_date"
+    assert ev.event_on == date(2026, 10, 24)
+
+
+def test_no_funding_signal_without_a_fundraise_date() -> None:
+    c = company(funding_last_fundraise_date=None)
+    sigs, _ = signals_from_company(c, plan(signal_types=["recent_funding"]), TODAY)
+    assert "recent_funding" not in by_type(sigs)
+
+
+def test_a_funding_round_outside_the_signal_types_is_not_surfaced() -> None:
+    c = company(funding_last_fundraise_date="2026-10-24")
+    sigs, _ = signals_from_company(c, plan(signal_types=["active_hiring"]), TODAY)
+    assert "recent_funding" not in by_type(sigs)
+
+
+def test_a_hiring_signal_reads_job_postings_for_any_kind_of_buyer() -> None:
+    assert wants_postings(plan(signal_types=["active_hiring"], tech_keywords=[]))
+    assert wants_postings(plan(signal_types=["support_team_growth"], tech_keywords=[]))
+    assert not wants_postings(plan(signal_types=["headcount_growth"], tech_keywords=[]))
+
+
+def test_a_posting_counts_as_active_hiring_when_that_is_the_chosen_signal() -> None:
+    p = plan(signal_types=["active_hiring"], tech_keywords=[])
+    out = signals_from_postings([posting(title="Head of Support")], p, TODAY)
+    assert [s.type for s in out.signals[1001]] == ["active_hiring"]
+    assert out.signals[1001][0].window_days == 30

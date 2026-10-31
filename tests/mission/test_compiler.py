@@ -75,6 +75,19 @@ def test_search_request_uses_only_allowlisted_free_filters_and_fits_budget() -> 
     assert set(req.fields or []) >= {"basic_info", "headcount", "hiring"}
 
 
+def test_requesting_funding_is_opt_in_by_signal_type() -> None:
+    plain = compile_search_request(
+        compile_plan(draft(), seller_domain="s.example", credit_budget=5.0)
+    )
+    assert "funding" not in (plain.fields or [])
+    wanting = compile_search_request(
+        compile_plan(
+            draft(signal_types=["recent_funding"]), seller_domain="s.example", credit_budget=5.0
+        )
+    )
+    assert "funding" in (wanting.fields or [])
+
+
 def test_compilation_is_deterministic() -> None:
     a = compile_search_request(compile_plan(draft(), seller_domain="s.example", credit_budget=5.0))
     b = compile_search_request(compile_plan(draft(), seller_domain="s.example", credit_budget=5.0))

@@ -211,6 +211,15 @@ def compile_plan(draft: MissionDraft, seller_domain: str, credit_budget: float) 
     )
 
 
+def response_fields(plan: GTMPlan) -> list[str]:
+    """`funding` is a premium field group, billed per result received, so it is requested only
+    when the plan actually wants a funding signal."""
+    fields = list(RESPONSE_FIELDS)
+    if "recent_funding" in plan.signal_types:
+        fields.append("funding")
+    return fields
+
+
 def compile_search_request(plan: GTMPlan) -> CompanySearchRequest:
     conditions: list[Condition | ConditionGroup] = []
     if plan.countries:
@@ -231,7 +240,7 @@ def compile_search_request(plan: GTMPlan) -> CompanySearchRequest:
     probe = CompanySearchRequest(
         search=SemanticSearch(query=plan.icp_query),
         filters=filters,
-        fields=RESPONSE_FIELDS,
+        fields=response_fields(plan),
         limit=1,
     )
     per_result = estimate_search_credits(probe)

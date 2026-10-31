@@ -225,8 +225,10 @@ def build_case(
         for s in ar.signals
         if s.status != "active"
     ]
-    if "recent_funding" in plan.signal_types:
-        gaps.append("recent_funding not collected in this run")
+    if "recent_funding" in plan.signal_types and not any(
+        s.type == "recent_funding" for s in ar.signals
+    ):
+        gaps.append("recent_funding not found for this account in this run")
 
     expiries: list[date] = []
     for s in active:

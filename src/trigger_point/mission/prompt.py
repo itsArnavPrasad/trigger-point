@@ -8,7 +8,7 @@ from trigger_point.mission.models import SIGNAL_TYPES
 from trigger_point.models.context import CLAIM_LIST_FIELDS, BusinessContext
 from trigger_point.providers.crustdata.models import ROLE_FUNCTIONS
 
-PROMPT_VERSION = "mission-prompt-v1"
+PROMPT_VERSION = "mission-prompt-v2"
 
 MISSION_SYSTEM_PROMPT = f"""\
 You turn a seller's approved business context and revenue goal into a target-market hypothesis \
@@ -16,13 +16,29 @@ for B2B account research. Code validates and compiles your answer; anything outs
 values is dropped.
 
 Fields:
-- icp_query: one or two sentences describing the companies to find, written for a semantic \
-company search (what they do, who they sell to, what situation makes the seller relevant).
+- icp_query: one sentence describing the buyer organisations to find, for a semantic company \
+search: what kind of organisation they are, what they do and where. Describe only the buyer. \
+Never mention the seller, its product or its category, because a search for those words finds \
+competitors. A seller of an AI maths tutor to schools searches for "CBSE schools in Mumbai", \
+not for "schools that could use an AI maths tutor".
 - countries: plain country or region names (e.g. "United States", "Europe"). Empty if unknown.
 - employee_min / employee_max: company size in employees, or null if the context does not say.
 - personas: the people who own the problem, not by default the CEO. function must be one of: \
 {", ".join(ROLE_FUNCTIONS)}.
-- signal_types: observable reasons to act now, chosen only from: {", ".join(SIGNAL_TYPES)}.
+- signal_types: observable, dated reasons to act now, chosen only from: {", ".join(SIGNAL_TYPES)}. \
+Each comes from a specific Crustdata source and only fires if that source actually has data for \
+this kind of buyer:
+  - support_team_growth, active_hiring: a dated job posting into the relevant team. Needs a buyer \
+that posts roles on channels Crustdata indexes (mainly venture-backed or larger companies). \
+Schools, government bodies, small local businesses and most consumer-facing organisations \
+usually post nothing Crustdata can see.
+  - headcount_growth: an employee-count trend as of Crustdata's last refresh. Same coverage limit \
+as above; needs an organisation with a tracked professional-network presence.
+  - recent_funding: a dated funding round. Only applies to companies that raise outside capital; \
+never choose it for schools, nonprofits, government bodies or bootstrapped small businesses.
+  Pick only signal_types you expect this buyer type to actually have. If none of the four \
+realistically applies, leave signal_types empty and say so in open_questions or assumptions \
+instead of guessing: an empty, honest list is better than one that will find nothing.
 - exclusions: companies that must not be targeted (competitors, partners the seller depends \
 on, existing customers named in the context). One company per item, written as \
 "Name (domain.com)" when the domain is known; no explanations.
