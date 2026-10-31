@@ -1,6 +1,7 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react"
 import { follow, get, post, token } from './api'
 import { Accounts, Activity, Campaign, Committee, Costs, EvidenceAudit, Gate, IcpPage, Integrations, Overview, ProfilePage, Signals } from './components/Dashboards'
+import AgentMode from './components/Agent'
 import Home, { NeedsYou } from './components/Home'
 import Icon from './components/Icon'
 import { FinancePage, LearningPage, OutreachPage, PipelinePage, StrategyPage } from './components/Pages'
@@ -189,6 +190,9 @@ function Inspector({ view, connected, page, onOpen, onAnswer, log, chat, setChat
   )
 }
 
+const MODE_KEY = 'trigger-point-mode'
+const savedMode = () => { try { return localStorage.getItem(MODE_KEY) === 'agent' ? 'agent' : 'dashboard' } catch { return 'dashboard' } }
+
 const wide = () => typeof window !== 'undefined' && window.innerWidth >= 1280
 const narrow = () => typeof window !== 'undefined' && window.innerWidth < 900
 
@@ -201,6 +205,8 @@ export default function App() {
   const [open, setOpen] = useState<{ role: string; tab: string } | null>(null)
   const [creating, setCreating] = useState(false)
   const [page, setPage] = useState('home')
+  const [mode, setModeState] = useState<'agent' | 'dashboard'>(savedMode)
+  const setMode = (m: 'agent' | 'dashboard') => { setModeState(m); try { localStorage.setItem(MODE_KEY, m) } catch { /* per-viewer convenience only */ } }
   const [meetingFocus, setMeetingFocus] = useState<string | null>(null)
   const [sidebar, setSidebar] = useState(!narrow())
   const [inspector, setInspector] = useState(wide())
@@ -259,6 +265,16 @@ export default function App() {
     meetings: splitMeetings(view.meetings, new Date().toISOString().slice(0, 10)).upcoming.length,
   } : {}
 
+  const modals = <>
+    {agent && view && boot && <AgentDashboard agent={agent} view={view} boot={boot} tab={open!.tab} setTab={t => setOpen({ role: agent.role, tab: t })} onClose={() => setOpen(null)} onAnswer={(p, d) => void answer(p, d)} />}
+    {creating && boot && <div className="overlay" onClick={() => setCreating(false)}><div className="modal" onClick={e => e.stopPropagation()}><NewMission onStart={start} onClose={() => setCreating(false)} mode={boot.mode} /></div></div>}
+  </>
+
+  if (mode === 'agent' && view) return <>
+    <AgentMode v={view} connected={connected} live={live} onDashboard={() => setMode('dashboard')} onAnswer={(p, d) => void answer(p, d)} onNewMission={() => setCreating(true)} />
+    {modals}
+  </>
+
   return (
     <div className={`shell${sidebar ? '' : ' no-sidebar'}${inspector && view ? ' with-inspector' : ''}`}>
       <aside className="sidebar" aria-label="Workspace">
@@ -296,6 +312,7 @@ export default function App() {
           {m && <span className={`mode-chip m-${m.mode}`} title={Object.entries(m.provider_modes).map(([k, v]) => `${k}: ${v}`).join(', ')}>{modeLabel(m.mode)}</span>}
           <span className={`live-chip l-${live}`} data-testid="liveness"><i />{LIVENESS_LABEL[live]}</span>
           <span className="grow" />
+          {view && <div className="mode-switch small" role="tablist" aria-label="Mode"><button role="tab" aria-selected="false" onClick={() => setMode('agent')}><Icon name="sparkle" size={13} />Agent</button><button role="tab" aria-selected="true" className="on"><Icon name="dashboard" size={13} />Dashboard</button></div>}
           {view && <span className="cost">${view.costs.claude_usd.toFixed(3)} · {view.costs.crustdata_credits.actual ?? '0'} credits</span>}
           {m && !['COMPLETE', 'FAILED', 'CANCELLED'].includes(m.state) && <button className="btn plain" onClick={() => void post(`/missions/${m.id}/cancel`)}>Cancel mission</button>}
           {view && <button className={`icon-btn${inspector ? ' on' : ''}`} onClick={() => setInspector(!inspector)} aria-label="Mission Director" title="Mission Director"><Icon name="chat" />{view.permissions.length > 0 && <em className="dot-badge" />}</button>}
@@ -314,7 +331,7 @@ export default function App() {
                 <p className="office-caption">{view ? SUBTITLE.office : 'Eight agents wait at their desks. They only move when real work starts.'}</p>
               </div>
             ) : page === 'home' ? (
-              view ? <Home v={view} connected={connected} live={live} go={go} onAnswer={(p, d) => void answer(p, d)} onReview={p => openAgent(p.dashboard, p.dashboard === 'mission-director' ? 'overview' : 'work')} onNotes={id => { setMeetingFocus(id); go('meetings') }} />
+              view ? <Home v={view} connected={connected} live={live} go={go} onAnswer={(p, d) => void answer(p, d)} onReview={p => openAgent(p.dashboard, p.dashboard === 'mission-director' ? 'overview' : 'work')} onNotes={id => { setMeetingFocus(id); go('meetings') }} onAgent={() => setMode('agent')} />
                 : boot ? <div className="welcome"><div className="welcome-copy"><span className="eyebrow">Trigger Point</span><h1>Find out who needs you, and why now.</h1><p>Give it your website and a goal. Agents read your business, pick the accounts with a real reason to talk, prove it with evidence, and draft outreach you approve.</p></div><NewMission onStart={start} mode={boot.mode} /></div>
                 : <p className="loading">Loading…</p>
             ) : (
@@ -331,8 +348,7 @@ export default function App() {
         </div>
       </div>
 
-      {agent && view && boot && <AgentDashboard agent={agent} view={view} boot={boot} tab={open!.tab} setTab={t => setOpen({ role: agent.role, tab: t })} onClose={() => setOpen(null)} onAnswer={(p, d) => void answer(p, d)} />}
-      {creating && boot && <div className="overlay" onClick={() => setCreating(false)}><div className="modal" onClick={e => e.stopPropagation()}><NewMission onStart={start} onClose={() => setCreating(false)} mode={boot.mode} /></div></div>}
+      {modals}
     </div>
   )
 }

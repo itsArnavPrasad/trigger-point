@@ -23,7 +23,7 @@ const longDate = (d: string) => {
   return Number.isFinite(day) ? `${day} ${MONTH[m - 1]} ${y}` : d
 }
 
-function Brief({ v, m, today }: { v: MissionView; m: Meeting; today: string }) {
+export function Brief({ v, m, today, bare }: { v: MissionView; m: Meeting; today: string; bare?: boolean }) {
   const status = meetingStatus(m, today)
   const account = v.accounts.find(a => same(a.name, m.account_name))
   const target = v.targets.find(t => same(t.name, m.account_name) || same(t.name, m.attendee))
@@ -43,7 +43,7 @@ function Brief({ v, m, today }: { v: MissionView; m: Meeting; today: string }) {
 
   return (
     <article className="brief">
-      <header className="brief-head">
+      {!bare && <header className="brief-head">
         <div className="cal big"><small>{MONTH[Number(m.held_on.split('-')[1]) - 1] ?? ''}</small><b>{Number(m.held_on.split('-')[2]) || '?'}</b></div>
         <div>
           <Tag tone={STATUS_TAG[status][1]}>{STATUS_TAG[status][0]}</Tag>
@@ -52,7 +52,7 @@ function Brief({ v, m, today }: { v: MissionView; m: Meeting; today: string }) {
           <small>{m.source === 'manual' ? 'Logged by hand' : human(m.source)}</small>
         </div>
         {(status === 'upcoming' || status === 'today') && <MeetButton link={m.link} />}
-      </header>
+      </header>}
 
       {past && status === 'held' && (
         <section className="brief-sec">

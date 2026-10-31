@@ -68,8 +68,8 @@ export function NeedsYou({ v, onAnswer, onReview }: { v: MissionView; onAnswer: 
   )
 }
 
-export default function Home({ v, connected, live, go, onAnswer, onReview, onNotes }: {
-  v: MissionView; connected: boolean; live: string; go: Go; onNotes: (meetingId: string) => void
+export default function Home({ v, connected, live, go, onAnswer, onReview, onNotes, onAgent }: {
+  v: MissionView; connected: boolean; live: string; go: Go; onNotes: (meetingId: string) => void; onAgent: () => void
   onAnswer: (p: Permission, d: 'allow' | 'deny') => void; onReview: (p: Permission) => void
 }) {
   const m = v.mission
@@ -135,6 +135,11 @@ export default function Home({ v, connected, live, go, onAnswer, onReview, onNot
             </li>
           ))}
         </ol>
+        <button className="agent-cta" onClick={onAgent}>
+          <span className="agent-cta-icon"><Icon name="sparkle" size={20} /></span>
+          <span><b>Switch to agent mode</b><small>Just your meetings, what to prepare, and a chat. Trigger Point does the rest.</small></span>
+          <Icon name="chevron" size={18} />
+        </button>
         <p className="sr-only">Step {Math.max(1, steps.findIndex(s => s.phase === 'current') + 1)} of {JOURNEY.length}: {stateLabel(m.state)}</p>
       </section>
 
