@@ -17,6 +17,7 @@ from trigger_point.mission.compiler import (
     compile_search_request,
     favour_signals,
     relaxation_steps,
+    thin_result_steps,
 )
 from trigger_point.mission.models import GTMPlan, Mission, MissionDraft
 from trigger_point.mission.prompt import MISSION_SYSTEM_PROMPT, build_mission_message
@@ -170,6 +171,9 @@ class CallRecord(BaseModel):
         return cls.model_validate({k: d[k] for k in cls.model_fields})
 
 
+MIN_KEPT = 5  # fewer buyers than this after filtering and the place is widened
+
+
 class DiscoveryRun(BaseModel):
     id: str
     mission_id: str
@@ -253,14 +257,27 @@ class DiscoveryService:
             request = CompanySearchRequest.model_validate(mission.search_request)
         else:
             request = compile_search_request(plan)
-        page = client.search_companies(request).data
-        if not page.companies:
+        companies = list(client.search_companies(request).data.companies)
+        if not companies:
             for step in relaxation_steps(plan):
                 run.relaxations.append(step.description)
-                page = client.search_companies(compile_search_request(step.plan)).data
-                if page.companies:
+                companies = list(
+                    client.search_companies(compile_search_request(step.plan)).data.companies
+                )
+                if companies:
+                    plan = step.plan
                     break
-        run.accounts, run.rejected = select_accounts(page.companies, plan, seller_domain, seller_id)
+        run.accounts, run.rejected = select_accounts(companies, plan, seller_domain, seller_id)
+        # Records came back but too few are buyers: widen the place and size, keep what was found.
+        for step in thin_result_steps(plan):
+            if len(run.accounts) >= MIN_KEPT:
+                break
+            run.relaxations.append(step.description)
+            more = client.search_companies(compile_search_request(step.plan)).data.companies
+            known = {c.provider_company_id for c in companies}
+            companies += [c for c in more if c.provider_company_id not in known]
+            plan = step.plan
+            run.accounts, run.rejected = select_accounts(companies, plan, seller_domain, seller_id)
         run.outcome = "completed" if run.accounts else "completed_empty"
 
     def get(self, discovery_id: str) -> DiscoveryRun | None:

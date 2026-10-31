@@ -356,3 +356,13 @@ def relaxation_steps(plan: GTMPlan) -> list[RelaxationStep]:
         current = current.model_copy(update={"countries": []})
         steps.append(RelaxationStep("drop country filter", current))
     return steps
+
+
+def thin_result_steps(plan: GTMPlan) -> list[RelaxationStep]:
+    """When a search returned records but too few were buyers, widen where and how big, never what.
+    Dropping the industry or the country would add companies that are not the seller's buyer."""
+    return [
+        s
+        for s in relaxation_steps(plan)
+        if s.description.startswith(("widen place", "drop company-size"))
+    ]

@@ -343,3 +343,16 @@ def test_widening_keeps_the_other_filters() -> None:
     first = relaxation_steps(p)[0]
     assert first.plan.places == ["Mumbai, India"]
     assert first.plan.industries == ["Primary/Secondary Education"]
+
+
+def test_a_thin_result_may_widen_place_and_size_but_never_drop_industry_or_country() -> None:
+    from tests.research.factories import plan
+    from trigger_point.mission.compiler import thin_result_steps
+
+    p = plan(places=["Powai, Mumbai, Maharashtra, India"], industries=["Education"])
+    steps = [s.description for s in thin_result_steps(p)]
+    assert steps == [
+        "drop company-size filter",
+        "widen place to Mumbai, Maharashtra, India",
+        "widen place to Maharashtra, India",
+    ]
