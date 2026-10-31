@@ -72,9 +72,12 @@ Real runs are listed in `docs/GTMO_AUDIT_REPORT.md`, section 6.
 - **Improvement loop:** `workflow/loop.py` and `workflow/feedback.py`, shown on the Learning page.
 - **MCP tools:** 36 tools. 6 are ask-gated. Only workflow tools can change a mission.
 
-## Autopilot (built 2026-10-31, tested with fakes only)
+## Autopilot (tested with fakes, and once live on a fixture mission)
 - Standing approvals, audit log, pause, per-mission policy, hero switch and settings sheet in the Office.
 - Driver: targets, write, approve, schedule. Conversations: reply analysis with quote checks, no with reason, offer times, booking code, booked meeting with generated prep.
+- Verified live on a fixture mission with real Claude Code and Gmail: input once, then profile and ICP approved, accounts researched, 3 people chosen, 3 messages written and verified, approved, scheduled and sent to the allowed recipient, with no click. The driver kept working after the Director's own pipeline completed (it had stopped there before).
+- Not verified live: replies, offering times and booking, since they need a second mailbox answering.
+- On real Powai schools the run stops at "no qualified account": none has a why-now signal, so nothing is written or sent.
 - UNVERIFIED against live services: Calendar event field names and Meet link shape, Gmail thread-reply behaviour, reply analysis on real replies, the Director following Autopilot instructions, and all of live mode. Slots come from the meeting window (Mon-Fri, India time) minus the busy times the Director reads from Google Calendar (`record_busy_times`); a reply is not read until the calendar was checked in the last 15 minutes. The Calendar read tool names and response shape are UNVERIFIED.
 
 ## Known gaps

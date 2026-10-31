@@ -70,3 +70,27 @@ def test_a_paused_mission_is_left_alone(h: Harness) -> None:
     ap = AutopilotService(h.office, True)
     ap.save(mid, {"paused": True})
     assert drive(h.rig.services, h.office, ap) == []
+
+
+def test_a_finished_mission_still_gets_its_messages_approved_and_scheduled(h: Harness) -> None:
+    """The Director's own pipeline completes once its draft is approved. Outreach, replies and
+    booking come after that, so Autopilot must keep going on a completed mission."""
+    rig = h.rig
+    mid = advance_to_draft(rig)
+    assert rig.call("run_quality_gate", mission_id=mid)["passed"]
+    a = rig.call("request_user_approval", mission_id=mid, gate="campaign_draft")
+    done = rig.call(
+        "approve_campaign_draft",
+        mission_id=mid,
+        approval_id=a["approval_id"],
+        expected_hash=a["target_hash"],
+    )
+    assert done["state"] == "COMPLETE"
+    kinds = [e.split(":")[1] for e in run(h, mid)]
+    assert {"targets", "write", "approve", "schedule"} <= set(kinds), kinds
+
+
+def test_a_failed_or_cancelled_mission_is_left_alone(h: Harness) -> None:
+    mid = advance_to_draft(h.rig)
+    h.rig.call("cancel_mission", mission_id=mid, reason="stopped")
+    assert run(h, mid) == []

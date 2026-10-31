@@ -18,6 +18,8 @@ from trigger_point.office.conversations import Conversations
 from trigger_point.office.store import OfficeStore
 from trigger_point.workflow.conversation import OPEN_STATES
 from trigger_point.workflow.models import TERMINAL
+
+STOPPED = TERMINAL - {"COMPLETE"}
 from trigger_point.workflow.service import audience_for
 
 LEAD = timedelta(minutes=2)
@@ -56,7 +58,8 @@ def drive_mission(
     """Does the single next thing for one mission. Returns what it did, or None."""
     wf, fb = services.workflow, services.feedback
     m = wf.engine.mission(mission_id)
-    if m.state in TERMINAL or m.research_id is None:
+    # COMPLETE means the Director's own pipeline finished; outreach and replies come after it.
+    if m.state in STOPPED or m.research_id is None:
         return None
     if convs is not None:
         read = convs.process(mission_id, policy)
