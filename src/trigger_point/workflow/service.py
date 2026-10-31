@@ -945,13 +945,23 @@ class WorkflowService:
         self.engine.save_record("proposal", proposal_id, mission_id, {**found, "status": decision})
         if decision != "approved":
             return {"ok": True, "status": decision}
+        out = self.version_strategy(mission_id, [found["change"]])
+        return {**out, "status": decision} if out["ok"] else out
+
+    def version_strategy(
+        self, mission_id: str, changes: list[str], extra: dict[str, Any] | None = None
+    ) -> Result:
+        """One approved decision becomes one new strategy version."""
         versions = self.strategy_versions(mission_id)
         if not versions:
             return {"ok": False, "error": "no_strategy", "message": "nothing to version"}
         last = versions[-1]
-        body = {**last["body"], "guidance": [*last["body"].get("guidance", []), found["change"]]}
-        version = self._save_strategy(mission_id, body, "user", [found["change"]], last["mode"])
-        return {"ok": True, "status": decision, "version": version}
+        body = {**last["body"], **(extra or {})}
+        body["guidance"] = [*last["body"].get("guidance", []), *changes]
+        return {
+            "ok": True,
+            "version": self._save_strategy(mission_id, body, "user", changes, last["mode"]),
+        }
 
     @guarded
     def rollback_strategy(self, mission_id: str, version: int) -> Result:

@@ -104,6 +104,7 @@ Connect Wispr Flow in your claude.ai connector settings, the same way as Gmail.
 - **Check replies** (Outreach page) reads each sent thread. Opt-outs and bounces are handled by rule. Whether someone is interested is your click.
 - **Import from Wispr Flow** (Meetings page) reads relevant meetings. A customer statement counts only if its quote is found in the transcript. Everything else waits in **Needs your review**.
 - **Review what we learned** (Learning page) finds what repeats across sources.
+- **Plan the next campaign** (Learning page) turns what repeats into one proposal: ICP and messaging changes, each citing its evidence, and the next campaign to run. A change with two or more sources can become a lesson. A change with one source is labelled an experiment and is tested, not taught. Approving the plan makes one strategy version and one experiment; nothing is sent by the plan itself.
 
 Each read is held as a card for your click. To run reads without clicking, add these to `permissions.allow` in `.claude/settings.json`: `mcp__claude_ai_Gmail__get_thread`, `mcp__claude_ai_Wispr_Flow__search_meetings`, `mcp__claude_ai_Wispr_Flow__get_meeting`, `mcp__claude_ai_Wispr_Flow__get_meeting_by_calendar_id`, and the `mcp__trigger_point__` tools `list_open_threads`, `sync_replies`, `import_meeting`, `add_meeting_insights`, `get_learning_inputs`, `propose_lesson`, `write_follow_up`.
 

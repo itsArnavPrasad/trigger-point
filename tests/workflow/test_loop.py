@@ -16,6 +16,7 @@ from trigger_point.workflow.loop import (
     parse_meeting,
     quote_found,
     split_cut,
+    strip_quoted,
     unwrap_tool_response,
 )
 
@@ -257,3 +258,60 @@ def test_the_real_wispr_cut_marker_is_found_even_inside_its_end_fence() -> None:
 def test_a_complete_transcript_inside_fences_is_clean_and_not_cut() -> None:
     text, start = split_cut("<<<BEGIN TRANSCRIPT>>>\nA: hello\n<<<END TRANSCRIPT>>>")
     assert start is None and text.strip() == "A: hello"
+
+
+QUOTE = "On Sat, 31 Oct 2026 at 11:00, Anmol <anmol@x.test> wrote:\n> Dear Principal,\n> reply STOP to unsubscribe"
+
+
+def test_only_what_the_person_wrote_is_kept_not_the_quoted_original() -> None:
+    assert strip_quoted(f"Yes, tell me more\n\n{QUOTE}") == "Yes, tell me more"
+
+
+def test_a_header_that_wraps_over_two_lines_is_still_cut() -> None:
+    wrapped = (
+        "Sounds good\n\nOn Sat, 31 Oct 2026 at 11:00, Anmol Sureka\n<anmol@x.test> wrote:\n> hi"
+    )
+    assert strip_quoted(wrapped) == "Sounds good"
+
+
+def test_inline_quoted_lines_are_dropped_and_the_answer_kept() -> None:
+    inline = (
+        "> Would you like a pilot?\nYes, in Class 8\n> reply STOP to unsubscribe\nNot before March"
+    )
+    assert strip_quoted(inline) == "Yes, in Class 8\nNot before March"
+
+
+def test_a_reply_with_no_quote_is_unchanged() -> None:
+    assert strip_quoted("Please unsubscribe me") == "Please unsubscribe me"
+
+
+def test_a_quoted_unsubscribe_in_our_own_text_is_not_an_opt_out() -> None:
+    body = strip_quoted(f"Yes, tell me more\n\n{QUOTE}")
+    assert classify_reply("person@x.test", body) == "reply"
+
+
+def test_the_gmail_parser_strips_the_quote_before_anything_reads_the_body() -> None:
+    m = parse_gmail_messages(
+        {
+            "messages": [
+                {
+                    "id": "b",
+                    "sender": "them@y.test",
+                    "labelIds": ["INBOX"],
+                    "plaintextBody": f"Great\n\n{QUOTE}",
+                }
+            ]
+        }
+    )
+    assert m[0].body == "Great"
+
+
+def test_an_untitled_recording_is_still_a_meeting_and_says_so() -> None:
+    m = parse_meeting(
+        {"id": "m9", "title": "", "start": "2026-10-04T16:51:28Z", "transcript": "hi"}
+    )
+    assert m is not None and m.title == "Untitled meeting on 2026-10-04"
+
+
+def test_a_recording_with_no_id_is_not_a_meeting() -> None:
+    assert parse_meeting({"title": "x"}) is None

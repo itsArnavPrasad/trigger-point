@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import { post } from '../api'
 import { RESULT_TEXT, percent, signalLabel } from '../logic'
-import type { Experiment, Lesson, MissionView, Outreach } from '../types'
+import type { CampaignPlan, Experiment, Lesson, MissionView, Outreach } from '../types'
 import { Card, Empty, Source, Stat, Tag } from './ui'
 
 function useAct() {
@@ -196,6 +196,23 @@ function ExperimentCard({ e, id }: { e: Experiment; id: string }) {
   )
 }
 
+function PlanCard({ p, id }: { p: CampaignPlan; id: string }) {
+  const { error, act } = useAct()
+  const c = p.campaign
+  return (
+    <Card wide title="Next campaign plan" hint="Proposed from what was learned. Nothing changes until you approve">
+      <p><b>{p.summary}</b> <Tag tone={p.status === 'approved' ? 'good' : p.status === 'rejected' ? 'bad' : 'info'}>{p.status}</Tag></p>
+      <ul className="plain">{p.changes.map(x => <li key={x.text}><b>{x.text}</b> <Tag>{x.target}</Tag>{x.experiment && <Tag tone="info">experiment</Tag>}<small>{x.sources} source{x.sources === 1 ? '' : 's'}{x.experiment ? '. Tested, not taught as a lesson' : ''}</small></li>)}</ul>
+      <small>Campaign: {[c.audience, c.signal_type && signalLabel(c.signal_type), c.angle].filter(Boolean).join(' | ')}{c.why ? `. ${c.why}` : ''}</small>
+      {error && <p className="alert bad">{error}</p>}
+      {p.status === 'proposed' && <div className="row start">
+        <button className="allow mini" onClick={() => void act(() => post(`/missions/${id}/plans/${p.id}/decide`, { decision: 'approved' }))}>Approve plan</button>
+        <button className="deny mini" onClick={() => void act(() => post(`/missions/${id}/plans/${p.id}/decide`, { decision: 'rejected' }))}>Reject</button>
+      </div>}
+    </Card>
+  )
+}
+
 export function LearningPage({ v }: { v: MissionView }) {
   const l = v.learning
   const r = l.report
@@ -210,6 +227,7 @@ export function LearningPage({ v }: { v: MissionView }) {
         <ol className="loop">{l.steps.map((s, i) => <li key={s.name} className={s.count ? 'on' : ''}><span>{i + 1}</span><b>{s.name}</b><em>{s.count}</em></li>)}</ol>
         <div className="row start">
           <button className="ghost" onClick={() => void act(() => post(`/missions/${id}/review-learning`))}>Review what we learned</button>
+          <button className="ghost" onClick={() => void act(() => post(`/missions/${id}/plan-campaign`))}>Plan the next campaign</button>
           {l.demo && <button className="ghost" onClick={() => void act(() => post(`/missions/${id}/demo-results`))}>Add demo results</button>}
         </div>
         {error && <p className="alert bad">{error}</p>}
@@ -238,6 +256,7 @@ export function LearningPage({ v }: { v: MissionView }) {
             <button className="deny mini" onClick={() => void act(() => post(`/missions/${id}/proposals/${d.id}`, { decision: 'rejected' }))}>Reject</button>
           </div></li>)}</ul>
       </Card>}
+      {l.plans.map(p => <PlanCard key={p.id} p={p} id={id} />)}
       {l.experiments.map(e => <ExperimentCard key={e.id} e={e} id={id} />)}
       <Card wide title="Lessons" hint="Approved lessons reach new messages, strategy and ICP work for this business">
         {l.lessons.length ? <ul className="plain">{l.lessons.map(x => <LessonRow key={x.id} x={x} id={id} />)}</ul> : <Empty>No lessons yet.</Empty>}

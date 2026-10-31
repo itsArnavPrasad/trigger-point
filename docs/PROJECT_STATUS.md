@@ -5,7 +5,7 @@ Checklist status: 67 working, 52 partial, 19 missing, 0 broken, 0 unverified, 0 
 ## Current state
 The core loop runs end to end:
 
-website → sourced business context → strategy → versioned ICP → Crustdata discovery → signals, people and deterministic scores → four-why case files → verified outreach → hash-bound approval → test send and meeting → replies and meetings → reviewed insights → lessons → versioned change → measurement → keep or roll back.
+website → sourced business context → strategy → versioned ICP → Crustdata discovery → signals, people and deterministic scores → four-why case files → verified outreach → hash-bound approval → test send and meeting → replies and meetings → reviewed insights → lessons → versioned change → measurement → a proposed plan for the next campaign (ICP, messaging, channel, with evidence) → approval → the next mission → keep or roll back.
 
 Live: web fetching, GLM (Hyde), Gmail and Calendar on the test inbox, Wispr Flow reads, Crustdata. Crustdata runs live.
 
