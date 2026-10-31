@@ -18,7 +18,6 @@ from trigger_point.office.conversations import Conversations
 from trigger_point.office.store import OfficeStore
 from trigger_point.workflow.conversation import OPEN_STATES
 from trigger_point.workflow.models import TERMINAL
-
 from trigger_point.workflow.service import audience_for
 
 STOPPED = TERMINAL - {"COMPLETE"}
