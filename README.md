@@ -14,41 +14,73 @@ An evidence-first GTM operating system. Give it a website and a revenue goal. It
 | Verified outreach, sequences and schedules | | Sending to real recipients |
 | Gmail and Calendar, **test inbox only** | | Outside market research |
 | Reply reading and Wispr Flow meeting import | | |
-| The improvement loop, shown on the Learning page | | |
+| The improvement loop, shown on the Learnings page | | |
 
 Current status, item by item: [docs/GTMO_AUDIT_REPORT.md](docs/GTMO_AUDIT_REPORT.md).
 
-## Requirements
+## How to run
+
+### 1. What you need
 | Tool | Used for | Install |
 |---|---|---|
-| [uv](https://docs.astral.sh/uv/) | Python 3.12 and packages | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
-| [Node.js](https://nodejs.org/) with npm, 20 or later | Building the Office UI | nodejs.org |
-| `python3` on `PATH` | Claude Code hooks (standard library only) | Included on macOS and most Linux |
-| [Claude Code](https://code.claude.com/docs) | Running missions | Needed for agents, not for tests |
+| [uv](https://docs.astral.sh/uv/) | Python 3.12 or newer and the packages (uv finds or installs the Python for you) | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| [Node.js](https://nodejs.org/) 20 or later, with npm | Building the Office screen | nodejs.org |
+| [Claude Code](https://code.claude.com/docs) | Runs the agents | The `claude` command must be a real program on your `PATH`. A shell alias is not enough, because the Office starts it itself. Check with `which claude` |
+| `python3` | Claude Code hooks (standard library only) | Included on macOS and most Linux |
 
-No API keys are needed for the tests or the fixture demo.
+You need no API keys for the tests or the demo. Real data needs the keys in [Run with real data](#run-with-real-data).
 
-## Quick start: fixture demo
+### 2. One-time setup
 ```bash
 git clone https://github.com/itsArnavPrasad/trigger-point.git
 cd trigger-point
-uv sync
-cp .env.example .env
-scripts/office.sh --fixture
+uv sync                  # Python and the packages
+cp .env.example .env     # settings. The demo needs no keys
+claude                   # run once in this folder, accept the prompts below, then type /exit
 ```
-The script builds the UI, starts the API on `127.0.0.1:8000` and opens the page with its access token. The token is stored at `~/.trigger-point/office-token` with mode `0600`.
+Claude Code ignores this project's permissions, hooks and tools until you accept two prompts the first time you start it here: the **workspace trust** dialog, and **approve the `trigger_point` server**. Check it worked:
+```bash
+claude mcp list          # trigger_point should say Connected, not Pending approval
+```
 
-To run missions, first start `claude` once in this folder. Accept the workspace trust dialog and approve the `trigger_point` MCP server. Claude Code ignores project permissions, hooks and the server until you do.
+### 3. Start the Office
+```bash
+scripts/office.sh --fixture   # demo: recorded data, no keys, no credits
+scripts/office.sh             # real data, as set in .env (see Run with real data)
+```
+- The first run installs the UI packages and builds the screen, which takes a little while. Later starts are quick.
+- Your browser opens at `http://127.0.0.1:8000/#token=...`. If it does not (non-macOS, or `TRIGGER_POINT_NO_OPEN=1`), copy the link the script prints. The token is kept in `~/.trigger-point/office-token`.
+- Leave the terminal open. Press **Ctrl+C** to stop.
+- **Restart it after you change `.env` or pull new code.** The server does not pick changes up while it runs. The screen is rebuilt for you when its source changed.
+- Everything is saved in `trigger_point.db` in this folder. To start completely fresh, stop the Office and delete that file.
 
-1. Click **New mission**, enter `supportpilot.example` and a goal.
-2. Answer the Mission Director in chat.
-3. Click **Approve** on each card in **Needs you**.
-4. Click a character to see its dashboard.
+### 4. First open: connect your tools
+When you open the Office in a new tab, a **Connect your tools** window appears if something is missing:
 
-Every screen is labelled as fixture data. `supportpilot.example` is the synthetic site with recorded data.
+| Tool | Needed? | What it does |
+|---|---|---|
+| Gmail | Yes | Sends your approved test emails and reads the replies |
+| Google Calendar | Yes | Finds your free times and books test meetings |
+| Wispr Flow | **Optional** | Reads meeting transcripts for you. Press **Skip** if you would rather paste transcripts yourself |
 
-## Live setup
-Edit `.env`. API keys always come from `.env`. Modes can be overridden from the shell.
+**Connect** opens Claude's connector settings (claude.ai, Settings, Connectors). Connect the tool there, come back and press **Check again**. The first check takes about 10 seconds. You can reopen the window any time from **Integrations, Connect tools**. Skipping Wispr is remembered in your browser. The demo's research steps work without any of these; test emails and test meetings need Gmail and Calendar.
+
+### 5. Run a mission
+1. On first open you see the start form. Enter a website and a goal. For the demo use `supportpilot.example`, the synthetic site with recorded data. Later missions: the **three dots** on the top card, then **New mission**.
+2. Open **Chat** (top right) and answer the Mission Director's questions.
+3. When a step needs you, a card appears under **Needs you**. Read it, then **Approve** or **Deny**. Nothing spends credits or goes out without this click.
+4. Look around: the sidebar has a page for each stage, **Live office** shows the agents working, and **Switch to agent mode** gives a quiet view of just your meetings, what to prepare, and a chat.
+
+Every screen is labelled as fixture data when it is. A mission started with real data is labelled **LIVE**, or **PART FIXTURE** when modes are mixed.
+
+## Run with real data
+1. Get a Hyde key and a Crustdata key. Crustdata contact lookups (email and phone) need a key with contact access.
+2. In `.env`, set the three modes to `live` and add the keys, using the table below.
+3. Raise `CRUSTDATA_RUN_CREDIT_BUDGET` (default 5) to what you are happy to spend per run. Contact lookups cost about 3 credits per person it can match.
+4. Set `TRIGGER_POINT_TEST_RECIPIENTS` to your own address, so test emails have somewhere safe to go.
+5. Run `scripts/office.sh` and start a mission with your own website.
+
+API keys always come from `.env`. Modes can be overridden from the shell.
 
 | Variable | Needed for | Notes |
 |---|---|---|
@@ -65,10 +97,6 @@ Edit `.env`. API keys always come from `.env`. Modes can be overridden from the 
 | `ENABLE_EMAIL_SEND`, `ENABLE_LINKEDIN_SEND` | Safety switches | Must stay `false`. `true` stops startup |
 | `TRIGGER_POINT_HOME` | Token location | Optional. Default `~/.trigger-point` |
 
-Then run:
-```bash
-scripts/office.sh
-```
 Without a Crustdata key, a live mission reads the site and builds the strategy and ICP, then stops at discovery with a clear retryable error. The header shows **PART FIXTURE** whenever modes are mixed.
 
 ## Connect Claude Code
@@ -90,21 +118,21 @@ The **Integrations** page in the Office shows the same list.
 ## Test email and calendar
 Sending works only through Claude Code's Gmail and Google Calendar connectors, and only to `TRIGGER_POINT_TEST_RECIPIENTS`.
 
-1. Connect Gmail and Google Calendar in your claude.ai connector settings.
+1. Connect Gmail and Google Calendar (the first-open window, or **Integrations, Connect tools**).
 2. Set `TRIGGER_POINT_TEST_RECIPIENTS=you@example.com` in `.env`, then restart the Office.
-3. On the **Outreach** page, add sample targets and write messages. Samples are named `SAMPLE` and are never contacted.
-4. Click **Send to test inbox**, then approve the card.
-5. Click **Book test meeting** on the **Meetings** page, then approve the card.
+3. On the **Outreach** page, click **Add sample targets**, then write a message for one. Samples are named `SAMPLE` and are never contacted.
+4. Click **Send to test inbox**, then approve the card under **Needs you**.
+5. Still on **Outreach**, click **Book a test meeting**, then approve the card.
 
 The hook denies any other recipient, and a failure in the guard also denies. Check the spam folder: mail from a personal Gmail account can land there. Real outreach needs an authenticated company domain.
 
 ## Replies, meetings and the improvement loop
-Connect Wispr Flow in your claude.ai connector settings, the same way as Gmail.
+Wispr Flow is optional. Connect it the same way as Gmail (first-open window, or **Integrations, Connect tools**), or skip it and type or paste meeting notes yourself on the **Meetings** page.
 
 - **Check replies** (Outreach page) reads each sent thread. Opt-outs and bounces are handled by rule. Whether someone is interested is your click.
 - **Import from Wispr Flow** (Meetings page) reads relevant meetings. A customer statement counts only if its quote is found in the transcript. Everything else waits in **Needs your review**.
-- **Review what we learned** (Learning page) finds what repeats across sources.
-- **Plan the next campaign** (Learning page) turns what repeats into one proposal: ICP and messaging changes, each citing its evidence, and the next campaign to run. A change with two or more sources can become a lesson. A change with one source is labelled an experiment and is tested, not taught. Approving the plan makes one strategy version and one experiment; nothing is sent by the plan itself.
+- **Review what we learned** (Learnings page) finds what repeats across sources.
+- **Plan the next campaign** (Learnings page) turns what repeats into one proposal: ICP and messaging changes, each citing its evidence, and the next campaign to run. A change with two or more sources can become a lesson. A change with one source is labelled an experiment and is tested, not taught. Approving the plan makes one strategy version and one experiment; nothing is sent by the plan itself.
 
 Each read is held as a card for your click. To run reads without clicking, add these to `permissions.allow` in `.claude/settings.json`: `mcp__claude_ai_Gmail__get_thread`, `mcp__claude_ai_Wispr_Flow__search_meetings`, `mcp__claude_ai_Wispr_Flow__get_meeting`, `mcp__claude_ai_Wispr_Flow__get_meeting_by_calendar_id`, and the `mcp__trigger_point__` tools `list_open_threads`, `sync_replies`, `import_meeting`, `add_meeting_insights`, `get_learning_inputs`, `propose_lesson`, `write_follow_up`.
 
@@ -155,6 +183,11 @@ tests/          Python tests
 | Symptom | Fix |
 |---|---|
 | Page says the token is missing | Open the link printed by `scripts/office.sh` |
+| `claude` not found, or agents never start | `which claude` must print a path. A shell alias is invisible to the Office. Put the real program on your `PATH` |
+| The connect window says a tool is missing, but it is connected | The first check takes about 10 seconds. Press **Check again**, or run `claude mcp list` in a terminal to see the truth |
+| I closed the connect window | **Integrations, Connect tools** opens it again |
+| I cannot find a New mission button | It is in the **three dots** menu on the top card of the Dashboard |
+| The page looks old after pulling new code | Stop the Office and run `scripts/office.sh` again. It rebuilds the screen when the sources changed
 | Port 8000 is in use | Stop the other process. The Office uses this port |
 | Agents do nothing, or every tool is denied | Run `claude` once here and accept the trust dialog |
 | `trigger_point` shows Pending approval | Run `claude` here and approve the server |
