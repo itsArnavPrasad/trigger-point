@@ -4,9 +4,9 @@
 import type { ReactNode } from "react"
 import { DESKS } from "./Room"
 import Icon from './Icon'
-import { JOURNEY, STAGE_ORDER, agentLabel, journey, modeLabel, permissionLabel, splitMeetings, stateLabel } from '../logic'
+import { JOURNEY, STAGE_ORDER, agentLabel, journey, meetingStatus, modeLabel, permissionLabel, splitMeetings, stateLabel } from '../logic'
 import type { Account, MissionView, Permission } from '../types'
-import { Tag } from './ui'
+import { MeetButton, Tag } from './ui'
 
 type Go = (page: string) => void
 
@@ -68,8 +68,8 @@ export function NeedsYou({ v, onAnswer, onReview }: { v: MissionView; onAnswer: 
   )
 }
 
-export default function Home({ v, connected, live, go, onAnswer, onReview }: {
-  v: MissionView; connected: boolean; live: string; go: Go
+export default function Home({ v, connected, live, go, onAnswer, onReview, onNotes }: {
+  v: MissionView; connected: boolean; live: string; go: Go; onNotes: (meetingId: string) => void
   onAnswer: (p: Permission, d: 'allow' | 'deny') => void; onReview: (p: Permission) => void
 }) {
   const m = v.mission
@@ -114,7 +114,7 @@ export default function Home({ v, connected, live, go, onAnswer, onReview }: {
 
   const feedback = [
     ...v.outcomes.filter(o => o.note && !o.note.startsWith('Meeting: ')).map(o => ({ key: o.id, who: o.account_name ?? 'Unknown account', date: o.occurred_on, text: o.note as string, label: human(o.kind), mode: o.mode })),
-    ...v.meetings.filter(x => x.notes).map(x => ({ key: x.id, who: x.account_name ?? x.title, date: x.held_on, text: x.notes as string, label: 'Meeting notes', mode: x.source })),
+    ...v.meetings.filter(x => x.notes && meetingStatus(x, today) === 'held').map(x => ({ key: x.id, who: x.account_name ?? x.title, date: x.held_on, text: x.notes as string, label: 'Meeting notes', mode: x.source })),
   ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4)
 
   return (
@@ -143,7 +143,7 @@ export default function Home({ v, connected, live, go, onAnswer, onReview }: {
       <div className="kpis">
         <Kpi icon="accounts" label="Qualified accounts" value={f.qualified ?? '–'} sub={f.found !== undefined ? `of ${f.found} found` : 'Search not run yet'} onClick={() => go('accounts')} />
         <Kpi icon="signals" label="Active signals" value={active.length} sub={signals.length ? `${signals.length - active.length} expired or undated` : 'None collected yet'} onClick={() => go('signals')} />
-        <Kpi icon="meetings" label="Upcoming meetings" value={upcoming.length} sub={`${past.length} held so far`} onClick={() => go('meetings')} tone={upcoming.length ? 'accent' : ''} />
+        <Kpi icon="meetings" label="Upcoming meetings" value={upcoming.length} sub={`${v.meetings.filter(x => meetingStatus(x, today) === 'held').length} held · ${v.meetings.filter(x => meetingStatus(x, today) === 'missed').length} missed`} onClick={() => go('meetings')} tone={upcoming.length ? 'accent' : ''} />
         <Kpi icon="outreach" label="Replies" value={replies.length} sub={`${replies.filter(r => r.kind === 'positive_reply').length} positive · ${sent} test sent`} onClick={() => go('pipeline')} />
         <Kpi icon="finance" label="Spend" value={`$${v.costs.claude_usd.toFixed(2)}`} sub={`${credits.actual ?? '0'} of ${credits.budget ?? '–'} Crustdata credits`} onClick={() => go('finance')} />
       </div>
@@ -167,12 +167,12 @@ export default function Home({ v, connected, live, go, onAnswer, onReview }: {
         </Panel>
 
         <Panel span={5} title="Meetings" action="Open" onAction={() => go('meetings')}>
-          {v.meetings.length ? <>
+          {v.meetings.length ? <div className="scroll-area">
             {upcoming.length > 0 && <h4 className="sub-head">Upcoming</h4>}
-            <ul className="meet-list">{upcoming.slice(0, 3).map(x => <MeetingRow key={x.id} x={x} soon />)}</ul>
+            <ul className="meet-list">{upcoming.map(x => <MeetingRow key={x.id} x={x} soon onNotes={onNotes} />)}</ul>
             {past.length > 0 && <h4 className="sub-head">Earlier</h4>}
-            <ul className="meet-list">{past.slice(0, 3).map(x => <MeetingRow key={x.id} x={x} />)}</ul>
-          </> : <div className="empty-state"><Icon name="meetings" size={28} /><p>No meetings yet</p><small>Book a test meeting or record one you held.</small><button className="btn tinted" onClick={() => go('meetings')}>Record a meeting</button></div>}
+            <ul className="meet-list">{past.map(x => <MeetingRow key={x.id} x={x} status={meetingStatus(x, today)} onNotes={onNotes} />)}</ul>
+          </div> : <div className="empty-state"><Icon name="meetings" size={28} /><p>No meetings yet</p><small>Book a test meeting or record one you held.</small><button className="btn tinted" onClick={() => go('meetings')}>Record a meeting</button></div>}
         </Panel>
 
         <Panel span={7} title="Funnel" hint="Accounts from research, replies and meetings from logged outcomes">
@@ -243,12 +243,20 @@ export default function Home({ v, connected, live, go, onAnswer, onReview }: {
   )
 }
 
-function MeetingRow({ x, soon }: { x: MissionView['meetings'][number]; soon?: boolean }) {
+function MeetingRow({ x, soon, status, onNotes }: { x: MissionView['meetings'][number]; soon?: boolean; status?: string; onNotes: (id: string) => void }) {
   const [, mm, dd] = x.held_on.split('-')
   return (
     <li className={soon ? 'soon' : ''}>
       <span className="cal"><small>{MONTH[Number(mm) - 1] ?? ''}</small><b>{Number(dd) || '?'}</b></span>
-      <div><b>{x.title}</b><small>{x.account_name ?? 'No account'} · {x.source === 'manual' ? 'Logged by hand' : human(x.source)}</small></div>
+      <div className="meet-body">
+        <b>{x.title}</b>
+        <small>{x.time ? `${x.time} · ` : ''}{x.attendee ?? x.account_name ?? 'No account'}</small>
+        <span className="row-actions">
+          {soon && <MeetButton link={x.link} compact />}
+          <button className="btn plain small" onClick={() => onNotes(x.id)}><Icon name="profile" size={14} />Notes</button>
+          {status && <Tag tone={status === 'held' ? 'good' : status === 'missed' ? 'bad' : 'warn'}>{status === 'needs_update' ? 'Needs update' : human(status)}</Tag>}
+        </span>
+      </div>
     </li>
   )
 }

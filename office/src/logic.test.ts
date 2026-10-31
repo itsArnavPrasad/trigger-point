@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentLabel, elapsed, flowSteps, journey, liveness, modeLabel, permissionLabel, safeHref, splitMeetings, tokenFromHash } from './logic'
+import { agentLabel, elapsed, flowSteps, journey, liveness, meetingStatus, modeLabel, permissionLabel, safeHref, splitMeetings, tokenFromHash } from './logic'
 import type { MissionView } from './types'
 
 const view = (over: Partial<MissionView> & { state?: string } = {}) => ({
@@ -59,6 +59,23 @@ describe('dashboard', () => {
     const { upcoming, past } = splitMeetings([{ held_on: '2026-10-01' }, { held_on: '2026-11-09' }, { held_on: '2026-10-31' }, { held_on: '2026-10-20' }], '2026-10-31')
     expect(upcoming.map(m => m.held_on)).toEqual(['2026-10-31', '2026-11-09'])
     expect(past.map(m => m.held_on)).toEqual(['2026-10-20', '2026-10-01'])
+  })
+})
+
+describe('meeting status', () => {
+  const today = '2026-10-31'
+  it('never calls a past meeting held without notes or a held mark', () => {
+    expect(meetingStatus({ held_on: '2026-10-20' }, today)).toBe('needs_update')
+    expect(meetingStatus({ held_on: '2026-10-20', notes: 'Wants a pilot' }, today)).toBe('held')
+    expect(meetingStatus({ held_on: '2026-10-20', status: 'held' }, today)).toBe('held')
+  })
+  it('keeps missed and cancelled whatever the date', () => {
+    expect(meetingStatus({ held_on: '2026-10-20', status: 'missed', notes: 'x' }, today)).toBe('missed')
+    expect(meetingStatus({ held_on: '2026-11-20', status: 'cancelled' }, today)).toBe('cancelled')
+  })
+  it('separates today from upcoming', () => {
+    expect(meetingStatus({ held_on: today }, today)).toBe('today')
+    expect(meetingStatus({ held_on: '2026-11-02' }, today)).toBe('upcoming')
   })
 })
 

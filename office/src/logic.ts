@@ -75,6 +75,16 @@ export function splitMeetings<T extends { held_on: string }>(meetings: T[], toda
   return { upcoming, past }
 }
 
+export type MeetingStatus = 'today' | 'upcoming' | 'held' | 'missed' | 'cancelled' | 'needs_update'
+
+/** A past meeting counts as held only when someone said so or wrote notes; otherwise it needs an update. */
+export function meetingStatus(m: { held_on: string; status?: string | null; notes?: string | null }, today: string): MeetingStatus {
+  if (m.status === 'missed' || m.status === 'cancelled') return m.status
+  if (m.held_on > today) return 'upcoming'
+  if (m.held_on === today) return m.status === 'held' ? 'held' : 'today'
+  return m.status === 'held' || m.notes?.trim() ? 'held' : 'needs_update'
+}
+
 /** What the office can vouch for. A stopped stream means Connection lost, never "still running". */
 export function agentLabel(a: Pick<Agent, 'status'>, connected: boolean): string {
   if (!connected) return a.status === 'running' ? 'Connection lost' : statusLabel(a.status)

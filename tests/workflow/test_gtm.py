@@ -204,6 +204,13 @@ def test_a_future_meeting_counts_as_booked_not_held(rig: Rig) -> None:
     assert [o.kind for o in wf.outcomes(mid)] == ["meeting_booked"]
 
 
+def test_a_missed_meeting_records_no_outcome(rig: Rig) -> None:
+    mid = advance_to_draft(rig)
+    wf = rig.services.workflow
+    wf.add_meeting(mid, {"title": "Walk-in", "held_on": "2026-10-30", "status": "missed"})
+    assert wf.meetings(mid)[0]["status"] == "missed" and wf.outcomes(mid) == []
+
+
 def test_a_proposal_needs_approval_creates_a_version_and_can_roll_back(rig: Rig) -> None:
     mid = advance_to_draft(rig)
     wf = rig.services.workflow

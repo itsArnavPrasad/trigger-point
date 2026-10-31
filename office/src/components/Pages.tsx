@@ -5,7 +5,7 @@ import { useState, type FormEvent } from 'react'
 import { post } from '../api'
 import { STAGE_ORDER, money } from '../logic'
 import type { MissionView } from '../types'
-import { Card, Empty, Source, Stat, Tag } from './ui'
+import { Card, Empty, Stat, Tag } from './ui'
 
 function Field({ label, value, onChange, type = 'text', options }: { label: string; value: string; onChange: (v: string) => void; type?: string; options?: string[] }) {
   return (
@@ -129,28 +129,6 @@ export function OutreachPage({ v }: { v: MissionView }) {
         </form>
       </Card>
       {[...v.outreach].reverse().map(o => <OutreachCard key={o.id} o={o} id={id} />)}
-    </div>
-  )
-}
-
-export function MeetingsPage({ v, wispr }: { v: MissionView; wispr: string }) {
-  const form = useForm({ title: '', held_on: '', account_name: '', notes: '' }, f => post(`/missions/${v.mission.id}/meetings`, { fields: f }))
-  return (
-    <div className="grid">
-      <Card wide title="Meetings" hint={wispr === 'not_connected' ? 'Wispr Flow is not connected, so meetings are entered by hand' : undefined}>
-        {v.meetings.length ? <table><thead><tr><th>Meeting</th><th>Date</th><th>Account</th><th>Notes</th><th>Source</th></tr></thead><tbody>{v.meetings.map(m => <tr key={m.id}><td><b>{m.title}</b>{m.link && <small><Source url={m.link} label="Join link" /></small>}</td><td>{m.held_on}</td><td>{m.account_name ?? 'Unknown'}</td><td>{m.notes}</td><td><Tag>{m.source}</Tag></td></tr>)}</tbody></table> : <Empty>No meetings recorded.</Empty>}
-        <div className="row start"><button className="ghost" onClick={() => void post(`/missions/${v.mission.id}/test-meeting`)}>Book test meeting</button></div>
-      </Card>
-      <Card wide title="Record a meeting">
-        <form className="form-grid" onSubmit={form.onSubmit}>
-          <Field label="Title" value={form.f.title} onChange={form.set('title')} />
-          <Field label="Date" type="date" value={form.f.held_on} onChange={form.set('held_on')} />
-          <Field label="Account" value={form.f.account_name} onChange={form.set('account_name')} />
-          <label className="span">Notes, in their words<textarea rows={3} value={form.f.notes} onChange={e => form.set('notes')(e.target.value)} /></label>
-          {form.error && <p className="alert bad span">{form.error}</p>}
-          <button className="allow" disabled={!form.f.title || !form.f.held_on}>Save meeting</button>
-        </form>
-      </Card>
     </div>
   )
 }

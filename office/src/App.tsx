@@ -3,7 +3,8 @@ import { follow, get, post, token } from './api'
 import { Accounts, Activity, Campaign, Committee, Costs, EvidenceAudit, Gate, IcpPage, Integrations, Overview, ProfilePage, Signals } from './components/Dashboards'
 import Home, { NeedsYou } from './components/Home'
 import Icon from './components/Icon'
-import { FinancePage, LearningPage, MeetingsPage, OutreachPage, PipelinePage, StrategyPage } from './components/Pages'
+import { FinancePage, LearningPage, OutreachPage, PipelinePage, StrategyPage } from './components/Pages'
+import MeetingsPage from './components/Meetings'
 import Room, { DESKS } from './components/Room'
 import { LIVENESS_LABEL, agentLabel, flowSteps, liveness, modeLabel, permissionLabel, splitMeetings, stateLabel } from './logic'
 import type { Agent, Bootstrap, MissionView, Permission } from './types'
@@ -35,7 +36,7 @@ const SUBTITLE: Record<string, string> = {
 }
 const LABEL = Object.fromEntries([...NAV.flatMap(([, items]) => items.map(([id, label]) => [id, label])), ['integrations', 'Integrations']])
 
-function Page({ id, view, boot }: { id: string; view: MissionView; boot: Bootstrap }) {
+function Page({ id, view, boot, focus }: { id: string; view: MissionView; boot: Bootstrap; focus?: string | null }) {
   switch (id) {
     case 'profile': return <ProfilePage v={view} />
     case 'strategy': return <StrategyPage v={view} />
@@ -46,7 +47,7 @@ function Page({ id, view, boot }: { id: string; view: MissionView; boot: Bootstr
     case 'evidence': return <EvidenceAudit v={view} />
     case 'campaign': return <Campaign v={view} />
     case 'outreach': return <OutreachPage v={view} />
-    case 'meetings': return <MeetingsPage v={view} wispr={boot.health.find(h => h.id === 'wispr')?.state ?? 'not_connected'} />
+    case 'meetings': return <MeetingsPage v={view} wispr={boot.health.find(h => h.id === 'wispr')?.state ?? 'not_connected'} focus={focus} />
     case 'pipeline': return <PipelinePage v={view} />
     case 'learning': return <LearningPage v={view} />
     case 'finance': return <FinancePage v={view} />
@@ -200,6 +201,7 @@ export default function App() {
   const [open, setOpen] = useState<{ role: string; tab: string } | null>(null)
   const [creating, setCreating] = useState(false)
   const [page, setPage] = useState('home')
+  const [meetingFocus, setMeetingFocus] = useState<string | null>(null)
   const [sidebar, setSidebar] = useState(!narrow())
   const [inspector, setInspector] = useState(wide())
   const [chat, setChat] = useState('')
@@ -304,22 +306,22 @@ export default function App() {
           <main className={`content${page === 'office' ? ' is-office' : ''}`}>
             {page === 'office' ? (
               <div className="office-stage">
-                <div className="room-card">
+                <div className="room-card"><div className="room-fit">
                   <Room agents={blanks} tasks={view?.tasks ?? []} health={boot?.health ?? []} connected={connected} night={hour < 7 || hour >= 19}
                     onAgent={role => openAgent(role, role === 'mission-director' ? 'overview' : 'work')}
                     onObject={(role, tab) => openAgent(role, tab)} />
-                </div>
+                </div></div>
                 <p className="office-caption">{view ? SUBTITLE.office : 'Eight agents wait at their desks. They only move when real work starts.'}</p>
               </div>
             ) : page === 'home' ? (
-              view ? <Home v={view} connected={connected} live={live} go={go} onAnswer={(p, d) => void answer(p, d)} onReview={p => openAgent(p.dashboard, p.dashboard === 'mission-director' ? 'overview' : 'work')} />
+              view ? <Home v={view} connected={connected} live={live} go={go} onAnswer={(p, d) => void answer(p, d)} onReview={p => openAgent(p.dashboard, p.dashboard === 'mission-director' ? 'overview' : 'work')} onNotes={id => { setMeetingFocus(id); go('meetings') }} />
                 : boot ? <div className="welcome"><div className="welcome-copy"><span className="eyebrow">Trigger Point</span><h1>Find out who needs you, and why now.</h1><p>Give it your website and a goal. Agents read your business, pick the accounts with a real reason to talk, prove it with evidence, and draft outreach you approve.</p></div><NewMission onStart={start} mode={boot.mode} /></div>
                 : <p className="loading">Loading…</p>
             ) : (
               <div className="page">
                 <header className="page-head"><h1>{LABEL[page]}</h1><p>{SUBTITLE[page]}</p></header>
                 {view && <NeedsYou v={view} onAnswer={(p, d) => void answer(p, d)} onReview={p => openAgent(p.dashboard, p.dashboard === 'mission-director' ? 'overview' : 'work')} />}
-                {view && boot ? <Page id={page} view={view} boot={boot} />
+                {view && boot ? <Page id={page} view={view} boot={boot} focus={meetingFocus} />
                   : boot && page === 'integrations' ? <Integrations health={boot.health} harness={boot.harness} />
                   : <div className="empty-state big"><Icon name="dashboard" size={32} /><p>No mission yet</p><small>Start a mission to fill this page.</small><button className="btn primary" onClick={() => setCreating(true)}>New mission</button></div>}
               </div>

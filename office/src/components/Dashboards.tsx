@@ -172,7 +172,7 @@ export function Signals({ v }: { v: MissionView }) {
         <table>
           <thead><tr><th>Account</th><th>Signal</th><th>Type</th><th>Date</th><th>Age</th><th>Strength</th><th>Status</th></tr></thead>
           <tbody>{rows.map(s => (
-            <tr key={s.id}><td><b>{s.account}</b></td><td>{s.description}</td><td>{s.type.replaceAll('_', ' ')}</td><td>{s.event_on ?? (s.as_of ? `as of ${s.as_of}` : 'undated')}</td>
+            <tr key={s.id}><td><b>{s.account}</b></td><td>{s.description}</td><td>{s.type === 'support_team_growth' ? "Hiring into buyer's team" : s.type.replaceAll('_', ' ')}</td><td>{s.event_on ?? (s.as_of ? `as of ${s.as_of}` : 'undated')}</td>
               <td>{s.age_days === null ? '-' : `${s.age_days}d of ${s.window_days}d`}</td><td>{Math.round(s.strength * 100)}%</td>
               <td><Tag tone={s.status === 'active' ? 'good' : s.status === 'expired' ? 'warn' : undefined}>{s.status}</Tag></td></tr>
           ))}</tbody>
